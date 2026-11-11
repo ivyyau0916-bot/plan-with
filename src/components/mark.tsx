@@ -163,10 +163,38 @@ export function GiftWell({ id, size = "md", className }: { id: string; size?: Ma
   );
 }
 
-export function AvatarBadge({ name, size = "md", className }: { name: string; size?: MarkSize; className?: string }) {
+export function matchMark(value: string | null | undefined) {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  return MARKS.find((item) => item.key === raw || item.legacy.includes(raw)) ?? null;
+}
+
+export function AvatarBadge({
+  name,
+  mark,
+  size = "md",
+  className,
+}: {
+  name: string;
+  mark?: string | null;
+  size?: MarkSize;
+  className?: string;
+}) {
+  const box = SIZES[size];
+  const found = matchMark(mark);
+  if (found) {
+    const Icon = found.icon;
+    return (
+      <span
+        className={cn("grid shrink-0 place-items-center", STICKER_SHADOW, found.well, found.ink, box.box, className)}
+        aria-hidden
+      >
+        <Icon className={box.icon} weight={STICKER_WEIGHT} />
+      </span>
+    );
+  }
   const trimmed = name.trim();
   const letter = [...trimmed][0]?.toLocaleUpperCase("en-US") ?? "";
-  const box = SIZES[size];
   if (!letter || trimmed === "未指派") {
     return (
       <span

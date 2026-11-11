@@ -69,7 +69,7 @@ export function GiftBoxDialog({ open, onClose }: { open: boolean; onClose: () =>
                             <li key={reward.id} className="text-xs leading-5 text-cocoa">
                               <span className="font-semibold text-ink">
                                 <span className="inline-flex items-center gap-1">
-                                  <AvatarBadge name={from.name} size="xs" />
+                                  <AvatarBadge name={from.name} mark={from.emoji} size="xs" />
                                   {from.name}
                                 </span>
                               </span>

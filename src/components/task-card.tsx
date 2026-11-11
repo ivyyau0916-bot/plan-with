@@ -85,7 +85,7 @@ export function TaskCard({
         ) : null}
         <span className="mt-3 flex items-center justify-between gap-2 text-xs text-cocoa">
           <span className="inline-flex items-center gap-1.5">
-            <AvatarBadge name={task.assignee_id ? assignee.name : "未指派"} size="xs" />
+            <AvatarBadge name={task.assignee_id ? assignee.name : "未指派"} mark={task.assignee_id ? assignee.emoji : null} size="xs" />
             {task.assignee_id ? assignee.name : "未指派"}
           </span>
           <span className={cn(isOverdue(task.due_date, task.status) && "font-semibold text-stuck")}>

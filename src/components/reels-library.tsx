@@ -309,7 +309,7 @@ function ReelCard({
           ) : null}
           <p className="mt-1 text-xs text-mist">
             <span className="inline-flex items-center gap-1">
-              <AvatarBadge name={author.name} size="xs" />
+              <AvatarBadge name={author.name} mark={author.emoji} size="xs" />
               {author.name} 收藏
             </span>
           </p>

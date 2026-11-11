@@ -281,7 +281,7 @@ export function MemberManageDialog({ spaceId, onClose }: { spaceId: string | nul
             const ownerRow = member.role === "owner";
             return (
               <li key={member.id} className="flex items-center gap-3 rounded-3xl bg-white/80 px-3 py-3">
-                <AvatarBadge name={profile.name} size="md" className="h-11 w-11" />
+                <AvatarBadge name={profile.name} mark={profile.emoji} size="md" className="h-11 w-11" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">
                     {profile.name}
@@ -318,7 +318,7 @@ export function MemberManageDialog({ spaceId, onClose }: { spaceId: string | nul
                 return (
                   <li key={member.id} className="rounded-3xl bg-white/80 p-3">
                     <div className="flex items-center gap-3">
-                      <AvatarBadge name={profile.name} size="md" className="h-11 w-11" />
+                      <AvatarBadge name={profile.name} mark={profile.emoji} size="md" className="h-11 w-11" />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold">{profile.name}</p>
                         <p className="text-xs text-mist">申請於 {formatWhen(member.joined_at)}</p>

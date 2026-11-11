@@ -9,6 +9,7 @@ import { ReelsLibrary } from "@/components/reels-library";
 import { RewardDialog } from "@/components/reward-dialog";
 import { Sidebar } from "@/components/sidebar";
 import { OnboardingTour } from "@/components/onboarding-tour";
+import { ProfileButton } from "@/components/profile-dialog";
 import { DueSoonBanner, NotificationBell } from "@/components/notification-center";
 import { CreateSpaceDialog, JoinSpaceDialog, SpaceSettingsDialog } from "@/components/space-dialogs";
 import { TaskBoard } from "@/components/task-board";
@@ -184,7 +185,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
                     ? "還沒有其他成員"
                     : names.map((profile) => (
                         <span key={profile.id} className="inline-flex items-center gap-1.5">
-                          <AvatarBadge name={profile.name} size="xs" />
+                          <AvatarBadge name={profile.name} mark={profile.emoji} size="xs" />
                           {profile.name}
                         </span>
                       ))}
@@ -227,7 +228,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
                     setDialog({ kind: "detail", taskId });
                   }}
                 />
-                <AvatarBadge name={me?.display_name ?? ""} size="sm" />
+                <ProfileButton name={me?.display_name ?? ""} mark={me?.avatar_url || me?.avatar_emoji} size="sm" />
                 <Button className="h-10 w-10 shrink-0 px-0 sm:w-auto sm:px-4" onClick={() => setDialog({ kind: "create-task" })}>
                   <Plus className="h-5 w-5 shrink-0" weight="bold" />
                   <span className="hidden sm:inline">新增任務</span>
@@ -241,7 +242,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
                     setDialog({ kind: "detail", taskId });
                   }}
                 />
-                <AvatarBadge name={me?.display_name ?? ""} size="sm" />
+                <ProfileButton name={me?.display_name ?? ""} mark={me?.avatar_url || me?.avatar_emoji} size="sm" />
               </div>
             )}
           </div>

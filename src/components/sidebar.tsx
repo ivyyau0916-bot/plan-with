@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Gear, Gift, Plus, PushPin, Ticket, Users, X } from "@phosphor-icons/react";
 import { GiftBoxDialog } from "@/components/gift-box-dialog";
-import { AvatarBadge, IconWell } from "@/components/mark";
+import { IconWell } from "@/components/mark";
+import { ProfileButton } from "@/components/profile-dialog";
 import { Logo } from "@/components/logo";
 import { ProjectDialog } from "@/components/project-dialog";
 import { MemberManageDialog, SpaceSettingsDialog } from "@/components/space-dialogs";
@@ -204,9 +205,14 @@ export function Sidebar({
         </div>
 
         <div className="mt-4 flex items-center gap-3 rounded-3xl bg-white/75 p-3">
-          <AvatarBadge name={me?.display_name ?? ""} size="md" className="h-11 w-11" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{me?.display_name ?? "登入中"}</p>
+            <ProfileButton
+              name={me?.display_name ?? ""}
+              mark={me?.avatar_url || me?.avatar_emoji}
+              size="md"
+              className="h-11 w-11"
+              showName
+            />
             <button
               type="button"
               onClick={() => setGiftBoxOpen(true)}

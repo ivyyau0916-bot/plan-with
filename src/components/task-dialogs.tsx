@@ -70,7 +70,7 @@ function AssigneeField({
   const { members, person } = useApp();
   return (
     <div className="flex items-center gap-2">
-      <AvatarBadge name={value ? person(value).name : "未指派"} size="sm" />
+      <AvatarBadge name={value ? person(value).name : "未指派"} mark={value ? person(value).emoji : null} size="sm" />
       <select className={cn(controlClass, "min-w-0 flex-1")} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">未指派</option>
         {members.map((member) => {
@@ -341,7 +341,7 @@ function DetailForm({
       <DialogTitle className="pr-8 text-xl font-bold">這件事</DialogTitle>
       <DialogDescription className="mt-1 text-sm text-cocoa">
         <span className="inline-flex items-center gap-1.5">
-          <AvatarBadge name={person(task.created_by).name} size="xs" />
+          <AvatarBadge name={person(task.created_by).name} mark={person(task.created_by).emoji} size="xs" />
           {person(task.created_by).name} 建立 · {formatWhen(task.created_at)}
         </span>
       </DialogDescription>
@@ -450,7 +450,7 @@ function DetailForm({
               <div key={item.id} className="rounded-2xl bg-linen/80 px-3 py-2">
                 <p className="text-xs text-mist">
                   <span className="inline-flex items-center gap-1">
-                    <AvatarBadge name={author.name} size="xs" />
+                    <AvatarBadge name={author.name} mark={author.emoji} size="xs" />
                     {author.name}
                   </span>
                   <span className="text-mist"> · {formatWhen(item.created_at)}</span>

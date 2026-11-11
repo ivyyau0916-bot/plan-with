@@ -28,6 +28,7 @@ type AppContextValue = {
   configured: boolean;
   needsAuth: boolean;
   me: Profile | null;
+  email: string | null;
   profiles: Profile[];
   spaces: Space[];
   space: Space | null;
@@ -58,6 +59,7 @@ type AppContextValue = {
   signUp: (email: string, password: string, name: string, emoji: string) => Promise<"ok" | "confirm-email">;
   signInWithNickname: (name: string, emoji: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateProfile: (input: { name: string; avatar: string }) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   markNotificationsRead: (ids: string[] | "all") => Promise<void>;
   focusTask: (taskId: string) => void;
@@ -101,6 +103,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [projectChoice, setProjectChoice] = useState<{ spaceId: string; projectId: string | null } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -171,6 +174,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     prevSnapshotRef.current = null;
     applyRef.current(next);
     setMeId(userId);
+    const { data: userData } = await getSupabase().auth.getUser();
+    setEmail(userData.user?.email ?? null);
     setActiveSpaceId(window.sessionStorage.getItem(`${SPACE_KEY}:${userId}`));
     setNeedsAuth(false);
     unsubRef.current?.();
@@ -422,6 +427,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     meIdRef.current = null;
     setSnapshot(null);
     setMeId(null);
+    setEmail(null);
     setNeedsAuth(true);
   }, []);
 
@@ -441,6 +447,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return next;
     });
   }, [requireApi]);
+
+  const updateProfile = useCallback(
+    async (input: { name: string; avatar: string }) => {
+      const { api } = requireApi();
+      await api.updateProfile(input);
+      await refresh();
+      notify("名稱更新了");
+    },
+    [notify, refresh, requireApi],
+  );
 
   const markNotificationsRead = useCallback(
     async (ids: string[] | "all") => {
@@ -709,6 +725,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       configured,
       needsAuth,
       me,
+      email,
       profiles: snapshot?.profiles ?? [],
       spaces,
       space,
@@ -739,6 +756,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signUp,
       signInWithNickname,
       signOut,
+      updateProfile,
       completeOnboarding,
       markNotificationsRead,
       focusTask,
@@ -765,6 +783,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       configured,
       needsAuth,
       me,
+      email,
       snapshot?.profiles,
       spaces,
       space,
@@ -795,6 +814,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signUp,
       signInWithNickname,
       signOut,
+      updateProfile,
       completeOnboarding,
       markNotificationsRead,
       focusTask,

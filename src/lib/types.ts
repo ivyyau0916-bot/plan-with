@@ -7,7 +7,9 @@ export type Profile = {
   id: string;
   display_name: string;
   avatar_emoji: string;
+  avatar_url: string | null;
   has_completed_onboarding: boolean;
+  updated_at: string;
 };
 
 export type Space = {

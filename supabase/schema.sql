@@ -1,7 +1,7 @@
 -- PlanWith（約定清單）
 -- 在 Supabase SQL Editor 整份執行一次。
 -- 需要已啟用的 Email Auth。若要「用暱稱開始」，再到 Authentication 打開 Anonymous sign-ins。
--- 新用戶會由 trigger 建立 profiles。已執行過舊版的話，再跑一次即可補上欄位、邀請碼函式、成員審核、成員管理、圖片庫、新手引導與通知中心。
+-- 新用戶會由 trigger 建立 profiles。已執行過舊版的話，再跑一次即可補上欄位、邀請碼函式、成員審核、成員管理、圖片庫、新手引導、通知中心與個人設定。
 
 create extension if not exists pgcrypto;
 
@@ -13,8 +13,10 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text not null check (char_length(trim(display_name)) > 0),
   avatar_emoji text not null default '🌷',
+  avatar_url text,
   has_completed_onboarding boolean not null default false,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.spaces (
@@ -174,6 +176,12 @@ end $$;
 alter table public.profiles
   add column if not exists has_completed_onboarding boolean not null default false;
 
+alter table public.profiles
+  add column if not exists avatar_url text;
+
+alter table public.profiles
+  add column if not exists updated_at timestamptz not null default now();
+
 -- ---------------------------------------------------------------------------
 -- Auth profile + invite helpers
 -- ---------------------------------------------------------------------------
@@ -214,6 +222,11 @@ $$;
 drop trigger if exists tasks_touch_updated_at on public.tasks;
 create trigger tasks_touch_updated_at
   before update on public.tasks
+  for each row execute function public.touch_updated_at();
+
+drop trigger if exists profiles_touch_updated_at on public.profiles;
+create trigger profiles_touch_updated_at
+  before update on public.profiles
   for each row execute function public.touch_updated_at();
 
 alter table public.spaces add column if not exists description text not null default '';
@@ -947,7 +960,7 @@ do $$
 declare
   tbl text;
 begin
-  foreach tbl in array array['tasks', 'comments', 'rewards', 'spaces', 'space_members', 'reels_ideas', 'projects', 'notifications']
+  foreach tbl in array array['tasks', 'comments', 'rewards', 'spaces', 'space_members', 'reels_ideas', 'projects', 'notifications', 'profiles']
   loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', tbl);

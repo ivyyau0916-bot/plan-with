@@ -21,6 +21,7 @@ export interface OurSyncApi {
   load(): Promise<Snapshot>;
   subscribe(listener: (snapshot: Snapshot) => void): () => void;
   completeOnboarding(): Promise<void>;
+  updateProfile(input: { name: string; avatar: string }): Promise<void>;
   markNotificationsRead(ids: string[] | "all"): Promise<void>;
   remindDueTasks(spaceId: string, tasks: Array<{ id: string; title: string; due_date: string }>): Promise<number>;
   createSpace(input: SpaceDraft): Promise<string>;
@@ -147,7 +148,7 @@ function withTaskExtras(task: Task): Task {
 
 async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
   const [profiles, spaces, members, tasks, projects, reelRows, comments, rewards, collections, unlocks, notes] = await Promise.all([
-    supabase.from("profiles").select("id, display_name, avatar_emoji, has_completed_onboarding"),
+    supabase.from("profiles").select("id, display_name, avatar_emoji, avatar_url, has_completed_onboarding, updated_at"),
     supabase.from("spaces").select("id, name, description, emoji, accent, invite_code, created_by, created_at"),
     supabase.from("space_members").select(MEMBER_COLUMNS),
     supabase.from("tasks").select(TASK_COLUMNS),
@@ -171,7 +172,12 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
   }
 
   let profileResult = profiles;
-  if (profiles.error && /has_completed_onboarding/i.test(profiles.error.message)) {
+  if (profiles.error && /avatar_url|updated_at/i.test(profiles.error.message)) {
+    profileResult = await supabase
+      .from("profiles")
+      .select("id, display_name, avatar_emoji, has_completed_onboarding");
+  }
+  if (profileResult.error && /has_completed_onboarding/i.test(profileResult.error.message)) {
     profileResult = await supabase.from("profiles").select("id, display_name, avatar_emoji");
   }
   assertOk(profileResult.error);
@@ -238,7 +244,10 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
   return {
     profiles: ((profileResult.data ?? []) as Snapshot["profiles"]).map((profile) => ({
       ...profile,
+      avatar_emoji: profile.avatar_emoji || "heart",
+      avatar_url: profile.avatar_url ?? null,
       has_completed_onboarding: profile.has_completed_onboarding === true,
+      updated_at: profile.updated_at ?? "",
     })),
     spaces: spaceRows,
     members: ((memberResult.data ?? []) as SpaceMember[]).map(withMembership),
@@ -306,12 +315,18 @@ export function createRemoteApi(supabase: SupabaseClient, userId: string): OurSy
         .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, reload)
         .subscribe();
 
+      const profilesChannel = supabase
+        .channel(`oursync-profiles-${userId}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, reload)
+        .subscribe();
+
       return () => {
         if (timer) clearTimeout(timer);
         void supabase.removeChannel(realtime);
         void supabase.removeChannel(reelsChannel);
         void supabase.removeChannel(projectsChannel);
         void supabase.removeChannel(notesChannel);
+        void supabase.removeChannel(profilesChannel);
       };
     },
     async completeOnboarding() {
@@ -323,6 +338,28 @@ export function createRemoteApi(supabase: SupabaseClient, userId: string): OurSy
         return;
       }
       assertOk(error);
+    },
+    async updateProfile(input) {
+      const name = input.name.trim().slice(0, 24);
+      const avatar = input.avatar.trim().slice(0, 80) || "heart";
+      if (!name) throw new Error("顯示名稱不能是空白");
+      const full = await supabase
+        .from("profiles")
+        .update({ display_name: name, avatar_emoji: avatar, avatar_url: avatar })
+        .eq("id", userId)
+        .select("id");
+      if (full.error && /avatar_url|updated_at/i.test(full.error.message)) {
+        const legacy = await supabase
+          .from("profiles")
+          .update({ display_name: name, avatar_emoji: avatar })
+          .eq("id", userId)
+          .select("id");
+        assertOk(legacy.error);
+        if (!legacy.data?.length) throw new Error("只能修改自己的名稱");
+        return;
+      }
+      assertOk(full.error);
+      if (!full.data?.length) throw new Error("只能修改自己的名稱");
     },
     async markNotificationsRead(ids) {
       let query = supabase.from("notifications").update({ is_read: true }).eq("user_id", userId).eq("is_read", false);
