@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-noto), "PingFang TC", "Noto Sans TC", sans-serif;
+  --font-display: var(--font-nunito), var(--font-noto), sans-serif;
+  --color-cream: #fbf6ef;
+  --color-foam: #fffdfb;
+  --color-linen: #f6ece3;
+  --color-sand: #ead9c8;
+  --color-blush: #f8d6d0;
+  --color-rose: #e7a196;
+  --color-coral: #c96a5c;
+  --color-coral-deep: #a85246;
+  --color-sage: #8eae9b;
+  --color-sage-deep: #5e7f6d;
+  --color-leaf: #e7f2eb;
+  --color-ink: #3d322c;
+  --color-cocoa: #6d5a52;
+  --color-mist: #a89288;
+  --color-stuck: #c4523f;
+  --color-stuck-bg: #fff1ec;
+}
+
+body {
+  min-height: 100%;
+  background:
+    radial-gradient(920px 440px at -8% -12%, rgb(248 214 208 / 0.95), transparent 62%),
+    radial-gradient(760px 420px at 108% -18%, rgb(199 224 208 / 0.9), transparent 58%),
+    var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-noto), "PingFang TC", "Noto Sans TC", sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.scroll-soft {
+  scrollbar-width: thin;
+  scrollbar-color: #e0cbb8 transparent;
+}
+
+@keyframes dialog-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.dialog-rise {
+  animation: dialog-rise 0.22s ease-out forwards;
+}
+
+@keyframes gift-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.45) translateY(-28px);
+  }
+}
+
+.gift-burst {
+  animation: gift-burst 1.05s ease-out forwards;
+}
+
+@keyframes gift-confetti {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+  }
+  16% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(var(--spin));
+  }
+}
+
+.gift-confetti-piece {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 9px;
+  height: 14px;
+  border-radius: 999px;
+  animation: gift-confetti 1.15s ease-out forwards;
+}
+
+@keyframes stuck-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(196 82 63 / 0.28);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgb(196 82 63 / 0);
+  }
+}
+
+.stuck-pulse {
+  animation: stuck-pulse 2.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog-rise,
+  .gift-burst,
+  .gift-confetti-piece,
+  .stuck-pulse {
+    animation: none;
+  }
+}
