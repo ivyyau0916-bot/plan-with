@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   applicationName: "PlanWith",
   icons: {
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/planwith-logo.png", type: "image/png" },
       { url: "/favicon.ico", sizes: "48x48" },
     ],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],

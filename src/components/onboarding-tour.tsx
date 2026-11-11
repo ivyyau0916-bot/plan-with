@@ -9,6 +9,7 @@ import {
   SealCheck,
   Sparkle,
 } from "@phosphor-icons/react";
+import Image from "next/image";
 import { useRef, useState, useSyncExternalStore } from "react";
 import { useApp } from "@/components/app-provider";
 import { TagChip } from "@/components/mark";
@@ -163,31 +164,8 @@ function StepArt({ step }: { step: number }) {
     );
   }
   return (
-    <svg viewBox="0 0 64 64" className="h-28 w-28 overflow-hidden rounded-[22%] shadow-[0_4px_12px_rgba(0,0,0,0.05)]" aria-hidden>
-      <rect width="64" height="64" rx="14" fill="#F6E3DC" />
-      <path
-        fill="#FF4B60"
-        stroke="#E12645"
-        strokeWidth="1.15"
-        strokeLinejoin="round"
-        d="M32 16.6c-.9-1.8-2.6-3.1-4.6-3.1-2.7 0-4.6 2.1-4.6 4.6 0 3.2 3 5.8 9.2 9.6 6.2-3.8 9.2-6.4 9.2-9.6 0-2.5-1.9-4.6-4.6-4.6-2 0-3.7 1.3-4.6 3.1z"
-      />
-      <g fill="#F8D0BA" stroke="#6A3A2A" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round">
-        <rect x="10.5" y="35.5" width="5" height="9" rx="2.5" transform="rotate(-18 13 40)" />
-        <rect x="15.6" y="33.8" width="5" height="10" rx="2.5" transform="rotate(-4 18.1 38.8)" />
-        <rect x="20.6" y="34.6" width="4.8" height="9" rx="2.4" transform="rotate(10 23 39)" />
-        <ellipse cx="18" cy="47.2" rx="10.6" ry="8" transform="rotate(-8 18 47.2)" />
-        <path d="M23.5 39.5c3.4-2.4 7.6-.8 8.4 2 .7 2.4-1 4.4-3.4 4.2" fill="none" stroke="#F8D0BA" strokeWidth="3.6" />
-        <path d="M23.5 39.5c3.4-2.4 7.6-.8 8.4 2 .7 2.4-1 4.4-3.4 4.2" fill="none" stroke="#6A3A2A" strokeWidth="1.7" />
-      </g>
-      <g transform="translate(64 0) scale(-1 1)" fill="#F8D0BA" stroke="#6A3A2A" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round">
-        <rect x="10.5" y="35.5" width="5" height="9" rx="2.5" transform="rotate(-18 13 40)" />
-        <rect x="15.6" y="33.8" width="5" height="10" rx="2.5" transform="rotate(-4 18.1 38.8)" />
-        <rect x="20.6" y="34.6" width="4.8" height="9" rx="2.4" transform="rotate(10 23 39)" />
-        <ellipse cx="18" cy="47.2" rx="10.6" ry="8" transform="rotate(-8 18 47.2)" />
-        <path d="M23.5 39.5c3.4-2.4 7.6-.8 8.4 2 .7 2.4-1 4.4-3.4 4.2" fill="none" stroke="#F8D0BA" strokeWidth="3.6" />
-        <path d="M23.5 39.5c3.4-2.4 7.6-.8 8.4 2 .7 2.4-1 4.4-3.4 4.2" fill="none" stroke="#6A3A2A" strokeWidth="1.7" />
-      </g>
-    </svg>
+    <span className="relative block h-28 w-28 overflow-hidden rounded-[22%] shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
+      <Image src="/planwith-logo.png" alt="" fill sizes="112px" className="object-cover" />
+    </span>
   );
 }
