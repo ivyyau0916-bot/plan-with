@@ -1,7 +1,7 @@
 -- PlanWith（約定清單）
 -- 在 Supabase SQL Editor 整份執行一次。
 -- 需要已啟用的 Email Auth。若要「用暱稱開始」，再到 Authentication 打開 Anonymous sign-ins。
--- 新用戶會由 trigger 建立 profiles。已執行過舊版的話，再跑一次即可補上欄位、邀請碼函式、成員審核、成員管理與圖片庫。
+-- 新用戶會由 trigger 建立 profiles。已執行過舊版的話，再跑一次即可補上欄位、邀請碼函式、成員審核、成員管理、圖片庫與新手引導。
 
 create extension if not exists pgcrypto;
 
@@ -13,6 +13,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text not null check (char_length(trim(display_name)) > 0),
   avatar_emoji text not null default '🌷',
+  has_completed_onboarding boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -169,6 +170,9 @@ begin
 exception
   when duplicate_object then null;
 end $$;
+
+alter table public.profiles
+  add column if not exists has_completed_onboarding boolean not null default false;
 
 -- ---------------------------------------------------------------------------
 -- Auth profile + invite helpers

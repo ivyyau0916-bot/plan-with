@@ -19,6 +19,7 @@ import { normalizeLink, normalizeTags } from "@/lib/task-extras";
 export interface OurSyncApi {
   load(): Promise<Snapshot>;
   subscribe(listener: (snapshot: Snapshot) => void): () => void;
+  completeOnboarding(): Promise<void>;
   createSpace(input: SpaceDraft): Promise<string>;
   updateSpace(id: string, input: { name: string; description: string }): Promise<void>;
   deleteSpace(id: string): Promise<void>;
@@ -55,6 +56,9 @@ function assertOk(error: QueryError) {
 }
 
 function taskColumnMessage(message: string) {
+  if (/has_completed_onboarding/i.test(message) && /does not exist|schema cache/i.test(message)) {
+    return "新手引導紀錄還沒建立。請在 Supabase SQL Editor 再執行一次 schema.sql。";
+  }
   if (/spaces/i.test(message) && /description/i.test(message) && /does not exist|schema cache/i.test(message)) {
     return "空間簡介還沒建立。請在 Supabase SQL Editor 再執行一次 schema.sql。";
   }
@@ -136,7 +140,7 @@ function withTaskExtras(task: Task): Task {
 
 async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
   const [profiles, spaces, members, tasks, projects, reelRows, comments, rewards, collections, unlocks] = await Promise.all([
-    supabase.from("profiles").select("id, display_name, avatar_emoji"),
+    supabase.from("profiles").select("id, display_name, avatar_emoji, has_completed_onboarding"),
     supabase.from("spaces").select("id, name, description, emoji, accent, invite_code, created_by, created_at"),
     supabase.from("space_members").select(MEMBER_COLUMNS),
     supabase.from("tasks").select(TASK_COLUMNS),
@@ -150,9 +154,15 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
     supabase.from("reward_unlocks").select("user_id, catalog_id, unlocked_at"),
   ]);
 
-  for (const result of [profiles, comments, rewards, unlocks]) {
+  for (const result of [comments, rewards, unlocks]) {
     assertOk(result.error);
   }
+
+  let profileResult = profiles;
+  if (profiles.error && /has_completed_onboarding/i.test(profiles.error.message)) {
+    profileResult = await supabase.from("profiles").select("id, display_name, avatar_emoji");
+  }
+  assertOk(profileResult.error);
 
   let spaceResult = spaces;
   if (spaces.error && /description/i.test(spaces.error.message)) {
@@ -208,7 +218,10 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
   }));
 
   return {
-    profiles: (profiles.data ?? []) as Snapshot["profiles"],
+    profiles: ((profileResult.data ?? []) as Snapshot["profiles"]).map((profile) => ({
+      ...profile,
+      has_completed_onboarding: profile.has_completed_onboarding === true,
+    })),
     spaces: spaceRows,
     members: ((memberResult.data ?? []) as SpaceMember[]).map(withMembership),
     projects: projectRows,
@@ -275,6 +288,16 @@ export function createRemoteApi(supabase: SupabaseClient, userId: string): OurSy
         void supabase.removeChannel(reelsChannel);
         void supabase.removeChannel(projectsChannel);
       };
+    },
+    async completeOnboarding() {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ has_completed_onboarding: true })
+        .eq("id", userId);
+      if (error && /has_completed_onboarding/i.test(error.message) && /does not exist|schema cache/i.test(error.message)) {
+        return;
+      }
+      assertOk(error);
     },
     async createSpace({ name, emoji, accent }) {
       const { data, error } = await supabase.rpc("create_space", {

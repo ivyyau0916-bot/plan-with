@@ -14,6 +14,7 @@ import { createRemoteApi, type OurSyncApi } from "@/lib/api";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { normalizeReelUrl, previewReel } from "@/lib/reels";
 import type { MembershipStatus, Profile, Project, RewardDraft, Snapshot, Space, SpaceMember, TaskDraft } from "@/lib/types";
+import { writeOnboardingDone } from "@/lib/onboarding";
 import { errorMessage, mapAuthError } from "@/lib/utils";
 
 const SPACE_KEY = "oursync-space";
@@ -54,6 +55,7 @@ type AppContextValue = {
   signUp: (email: string, password: string, name: string, emoji: string) => Promise<"ok" | "confirm-email">;
   signInWithNickname: (name: string, emoji: string) => Promise<void>;
   signOut: () => Promise<void>;
+  completeOnboarding: () => Promise<void>;
   createSpace: (name: string, emoji: string, accent: string) => Promise<string>;
   updateSpace: (id: string, input: { name: string; description: string }) => Promise<void>;
   deleteSpace: (id: string) => Promise<void>;
@@ -386,6 +388,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNeedsAuth(true);
   }, []);
 
+  const completeOnboarding = useCallback(async () => {
+    const { api, userId } = requireApi();
+    await api.completeOnboarding();
+    writeOnboardingDone(userId);
+    setSnapshot((current) => {
+      if (!current) return current;
+      const next = {
+        ...current,
+        profiles: current.profiles.map((profile) =>
+          profile.id === userId ? { ...profile, has_completed_onboarding: true } : profile,
+        ),
+      };
+      prevSnapshotRef.current = next;
+      return next;
+    });
+  }, [requireApi]);
+
   const createSpace = useCallback(
     async (name: string, emoji: string, accent: string) => {
       const { api, userId } = requireApi();
@@ -647,6 +666,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signUp,
       signInWithNickname,
       signOut,
+      completeOnboarding,
       createSpace,
       updateSpace,
       deleteSpace,
@@ -698,6 +718,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signUp,
       signInWithNickname,
       signOut,
+      completeOnboarding,
       createSpace,
       updateSpace,
       deleteSpace,

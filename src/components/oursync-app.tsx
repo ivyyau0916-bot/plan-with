@@ -8,6 +8,7 @@ import { AuthScreen } from "@/components/auth-screen";
 import { ReelsLibrary } from "@/components/reels-library";
 import { RewardDialog } from "@/components/reward-dialog";
 import { Sidebar } from "@/components/sidebar";
+import { OnboardingTour } from "@/components/onboarding-tour";
 import { CreateSpaceDialog, JoinSpaceDialog, SpaceSettingsDialog } from "@/components/space-dialogs";
 import { TaskBoard } from "@/components/task-board";
 import { CreateTaskDialog, StuckDialog, TaskDetailDialog } from "@/components/task-dialogs";
@@ -412,6 +413,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
           onSent={setBurst}
         />
       ) : null}
+      <OnboardingTour />
       <Toast />
       {burst ? <GiftBurst giftId={burst} /> : null}
       </div>
