@@ -55,6 +55,8 @@ type AppContextValue = {
   signInWithNickname: (name: string, emoji: string) => Promise<void>;
   signOut: () => Promise<void>;
   createSpace: (name: string, emoji: string, accent: string) => Promise<string>;
+  updateSpace: (id: string, input: { name: string; description: string }) => Promise<void>;
+  deleteSpace: (id: string) => Promise<void>;
   joinSpace: (code: string) => Promise<void>;
   reviewMembership: (memberId: string, decision: Exclude<MembershipStatus, "pending">) => Promise<void>;
   removeMember: (memberId: string) => Promise<void>;
@@ -396,6 +398,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [requireApi, setActiveSpace],
   );
 
+  const updateSpace = useCallback(
+    async (id: string, input: { name: string; description: string }) => {
+      const { api } = requireApi();
+      await api.updateSpace(id, input);
+      await refresh();
+      notify("空間資料更新了");
+    },
+    [notify, refresh, requireApi],
+  );
+
+  const deleteSpace = useCallback(
+    async (id: string) => {
+      const { api, userId } = requireApi();
+      await api.deleteSpace(id);
+      const next = await api.load();
+      applyRef.current(next);
+      const mine = next.members.filter((member) => member.user_id === userId && member.status !== "rejected");
+      const visible = next.spaces.filter((item) => mine.some((member) => member.space_id === item.id));
+      const preferred =
+        visible.find((item) =>
+          mine.some((member) => member.space_id === item.id && member.status === "approved"),
+        ) ?? visible[0];
+      if (preferred) {
+        setActiveSpace(preferred.id);
+      } else {
+        setActiveSpaceId(null);
+        window.sessionStorage.removeItem(`${SPACE_KEY}:${userId}`);
+      }
+      setProjectChoice(null);
+      notify("空間已刪除");
+    },
+    [notify, requireApi, setActiveSpace],
+  );
+
   const createProject = useCallback(
     async (input: { name: string; emoji: string; description: string }) => {
       const { api, userId } = requireApi();
@@ -612,6 +648,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signInWithNickname,
       signOut,
       createSpace,
+      updateSpace,
+      deleteSpace,
       joinSpace,
       reviewMembership,
       removeMember,
@@ -661,6 +699,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signInWithNickname,
       signOut,
       createSpace,
+      updateSpace,
+      deleteSpace,
       joinSpace,
       reviewMembership,
       removeMember,

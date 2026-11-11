@@ -15,6 +15,7 @@ export type Space = {
   emoji: string;
   accent: string;
   invite_code: string;
+  description: string;
   created_by: string;
   created_at: string;
 };

@@ -22,6 +22,7 @@ create table if not exists public.spaces (
   emoji text not null default '💛',
   accent text not null default 'blush' check (accent in ('blush', 'sage', 'sand', 'lilac', 'gold')),
   invite_code text not null unique,
+  description text not null default '',
   created_by uuid not null references public.profiles (id) on delete cascade,
   created_at timestamptz not null default now()
 );
@@ -211,6 +212,36 @@ create trigger tasks_touch_updated_at
   before update on public.tasks
   for each row execute function public.touch_updated_at();
 
+alter table public.spaces add column if not exists description text not null default '';
+
+do $$
+begin
+  alter table public.spaces
+    add constraint spaces_description_limit check (char_length(description) <= 200);
+exception
+  when duplicate_object then null;
+end $$;
+
+create or replace function public.protect_space_identity()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.created_by is distinct from old.created_by
+     or new.invite_code is distinct from old.invite_code
+     or new.created_at is distinct from old.created_at then
+    raise exception '空間的邀請碼與建立者不能改';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists spaces_protect_identity on public.spaces;
+create trigger spaces_protect_identity
+  before update on public.spaces
+  for each row execute function public.protect_space_identity();
+
 alter table public.space_members
   add column if not exists status text not null default 'approved';
 
@@ -390,6 +421,7 @@ revoke all on function public.generate_invite_code() from public;
 revoke all on function public.create_space(text, text, text) from public;
 revoke all on function public.join_space(text) from public;
 revoke all on function public.review_membership(uuid, text) from public;
+revoke all on function public.protect_space_identity() from public;
 grant execute on function public.is_space_member(uuid) to authenticated;
 grant execute on function public.create_space(text, text, text) to authenticated;
 grant execute on function public.join_space(text) to authenticated;
@@ -444,6 +476,47 @@ using (
     where space_members.space_id = spaces.id
       and space_members.user_id = auth.uid()
       and space_members.status = 'pending'
+  )
+);
+
+drop policy if exists "owners update spaces" on public.spaces;
+create policy "owners update spaces" on public.spaces
+for update to authenticated
+using (
+  created_by = auth.uid()
+  or exists (
+    select 1
+    from public.space_members
+    where space_members.space_id = spaces.id
+      and space_members.user_id = auth.uid()
+      and space_members.role = 'owner'
+      and space_members.status = 'approved'
+  )
+)
+with check (
+  created_by = auth.uid()
+  or exists (
+    select 1
+    from public.space_members
+    where space_members.space_id = spaces.id
+      and space_members.user_id = auth.uid()
+      and space_members.role = 'owner'
+      and space_members.status = 'approved'
+  )
+);
+
+drop policy if exists "owners delete spaces" on public.spaces;
+create policy "owners delete spaces" on public.spaces
+for delete to authenticated
+using (
+  created_by = auth.uid()
+  or exists (
+    select 1
+    from public.space_members
+    where space_members.space_id = spaces.id
+      and space_members.user_id = auth.uid()
+      and space_members.role = 'owner'
+      and space_members.status = 'approved'
   )
 );
 
@@ -601,7 +674,7 @@ for select to authenticated
 using (user_id = auth.uid());
 
 grant select, insert, update on public.profiles to authenticated;
-grant select on public.spaces to authenticated;
+grant select, update, delete on public.spaces to authenticated;
 grant select, update, delete on public.space_members to authenticated;
 grant select, insert, update, delete on public.tasks to authenticated;
 grant select, insert, update, delete on public.projects to authenticated;

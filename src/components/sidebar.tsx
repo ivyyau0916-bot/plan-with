@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Gift, Plus, PushPin, Ticket, Users, X } from "@phosphor-icons/react";
+import { Gear, Gift, Plus, PushPin, Ticket, Users, X } from "@phosphor-icons/react";
 import { GiftBoxDialog } from "@/components/gift-box-dialog";
 import { AvatarBadge, IconWell } from "@/components/mark";
 import { Logo } from "@/components/logo";
 import { ProjectDialog } from "@/components/project-dialog";
-import { MemberManageDialog } from "@/components/space-dialogs";
+import { MemberManageDialog, SpaceSettingsDialog } from "@/components/space-dialogs";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/components/app-provider";
 import type { Project } from "@/lib/types";
@@ -26,11 +26,13 @@ export function Sidebar({
   const { me, spaces, space, projects, project, giftCounts, reviewQueue, membershipOf, setActiveSpace, setActiveProject, signOut } =
     useApp();
   const [manageSpaceId, setManageSpaceId] = useState<string | null>(null);
+  const [settingsSpaceId, setSettingsSpaceId] = useState<string | null>(null);
   const [giftBoxOpen, setGiftBoxOpen] = useState(false);
   const [projectMode, setProjectMode] = useState<"create" | Project | null>(null);
   const received = giftCounts
     .filter((row) => row.receiver_id === me?.id)
     .reduce((sum, row) => sum + row.item_count, 0);
+  const settingsSpace = spaces.find((item) => item.id === settingsSpaceId) ?? null;
 
   return (
     <>
@@ -116,6 +118,16 @@ export function Sidebar({
                     >
                       <Users className="mr-1 inline h-3.5 w-3.5" weight="bold" />
                       成員管理
+                    </button>
+                  ) : null}
+                  {mine?.role === "owner" && mine.status === "approved" && active ? (
+                    <button
+                      type="button"
+                      className="px-3 pb-2.5 text-left text-xs font-semibold text-cocoa"
+                      onClick={() => setSettingsSpaceId(item.id)}
+                    >
+                      <Gear className="mr-1 inline h-3.5 w-3.5" weight="bold" />
+                      空間設定
                     </button>
                   ) : null}
                   {requests > 0 ? (
@@ -211,6 +223,9 @@ export function Sidebar({
         </div>
       </aside>
       <MemberManageDialog spaceId={manageSpaceId} onClose={() => setManageSpaceId(null)} />
+      {settingsSpace ? (
+        <SpaceSettingsDialog key={settingsSpace.id} space={settingsSpace} onClose={() => setSettingsSpaceId(null)} />
+      ) : null}
       <GiftBoxDialog open={giftBoxOpen} onClose={() => setGiftBoxOpen(false)} />
       <ProjectDialog mode={projectMode} onClose={() => setProjectMode(null)} />
     </>

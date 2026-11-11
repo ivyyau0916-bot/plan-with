@@ -20,6 +20,8 @@ export interface OurSyncApi {
   load(): Promise<Snapshot>;
   subscribe(listener: (snapshot: Snapshot) => void): () => void;
   createSpace(input: SpaceDraft): Promise<string>;
+  updateSpace(id: string, input: { name: string; description: string }): Promise<void>;
+  deleteSpace(id: string): Promise<void>;
   joinSpace(code: string, userId: string): Promise<string>;
   createTask(spaceId: string, userId: string, draft: TaskDraft): Promise<string>;
   updateTask(id: string, patch: Partial<TaskDraft>): Promise<void>;
@@ -53,6 +55,9 @@ function assertOk(error: QueryError) {
 }
 
 function taskColumnMessage(message: string) {
+  if (/spaces/i.test(message) && /description/i.test(message) && /does not exist|schema cache/i.test(message)) {
+    return "空間簡介還沒建立。請在 Supabase SQL Editor 再執行一次 schema.sql。";
+  }
   if (/reels_ideas/i.test(message) && /tags/i.test(message) && /does not exist|schema cache/i.test(message)) {
     return "靈感標籤還沒建立。請在 Supabase SQL Editor 再執行一次 schema.sql。";
   }
@@ -132,7 +137,7 @@ function withTaskExtras(task: Task): Task {
 async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
   const [profiles, spaces, members, tasks, projects, reelRows, comments, rewards, collections, unlocks] = await Promise.all([
     supabase.from("profiles").select("id, display_name, avatar_emoji"),
-    supabase.from("spaces").select("id, name, emoji, accent, invite_code, created_by, created_at"),
+    supabase.from("spaces").select("id, name, description, emoji, accent, invite_code, created_by, created_at"),
     supabase.from("space_members").select(MEMBER_COLUMNS),
     supabase.from("tasks").select(TASK_COLUMNS),
     supabase.from("projects").select("id, space_id, name, description, icon_emoji, created_by, created_at"),
@@ -145,9 +150,17 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
     supabase.from("reward_unlocks").select("user_id, catalog_id, unlocked_at"),
   ]);
 
-  for (const result of [profiles, spaces, comments, rewards, unlocks]) {
+  for (const result of [profiles, comments, rewards, unlocks]) {
     assertOk(result.error);
   }
+
+  let spaceResult = spaces;
+  if (spaces.error && /description/i.test(spaces.error.message)) {
+    spaceResult = await supabase
+      .from("spaces")
+      .select("id, name, emoji, accent, invite_code, created_by, created_at");
+  }
+  assertOk(spaceResult.error);
 
   let memberResult = members;
   if (members.error && /status/i.test(members.error.message)) {
@@ -188,11 +201,15 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
     }));
   }
 
-  const spaceRows = (spaces.data ?? []) as Snapshot["spaces"];
+  const spaceRows = ((spaceResult.data ?? []) as Snapshot["spaces"]).map((space) => ({
+    ...space,
+    accent: space.accent || "blush",
+    description: space.description ?? "",
+  }));
 
   return {
     profiles: (profiles.data ?? []) as Snapshot["profiles"],
-    spaces: spaceRows.map((space) => ({ ...space, accent: space.accent || "blush" })),
+    spaces: spaceRows,
     members: ((memberResult.data ?? []) as SpaceMember[]).map(withMembership),
     projects: projectRows,
     tasks: taskRows.map(withTaskExtras),
@@ -268,6 +285,23 @@ export function createRemoteApi(supabase: SupabaseClient, userId: string): OurSy
       assertOk(error);
       if (typeof data !== "string") throw new Error("空間沒有建立成功");
       return data;
+    },
+    async updateSpace(id, input) {
+      const name = input.name.trim().slice(0, 24);
+      const description = input.description.trim().slice(0, 200);
+      if (!name) throw new Error("空間名稱不能是空白");
+      const { data, error } = await supabase
+        .from("spaces")
+        .update({ name, description })
+        .eq("id", id)
+        .select("id");
+      assertOk(error);
+      if (!data?.length) throw new Error("只有空間創作者可以改這項設定");
+    },
+    async deleteSpace(id) {
+      const { data, error } = await supabase.from("spaces").delete().eq("id", id).select("id");
+      assertOk(error);
+      if (!data?.length) throw new Error("只有空間創作者可以刪除這個空間");
     },
     async joinSpace(code) {
       const normalized = normalizeInviteCode(code);

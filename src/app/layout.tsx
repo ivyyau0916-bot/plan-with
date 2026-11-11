@@ -19,6 +19,19 @@ const nunito = Nunito({
 export const metadata: Metadata = {
   title: "PlanWith ｜ 約定清單",
   description: "給情侶與好友的協同任務與願望清單。",
+  applicationName: "PlanWith",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "48x48" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "PlanWith",
+    statusBarStyle: "default",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

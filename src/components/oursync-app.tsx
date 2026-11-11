@@ -1,6 +1,6 @@
 "use client";
 
-import { Broadcast, Copy, Flower, Lightbulb, List, MagnifyingGlass, Plus } from "@phosphor-icons/react";
+import { Broadcast, Copy, Flower, Gear, Lightbulb, List, MagnifyingGlass, Plus } from "@phosphor-icons/react";
 import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { AppProvider, useApp } from "@/components/app-provider";
 import { Logo } from "@/components/logo";
@@ -8,7 +8,7 @@ import { AuthScreen } from "@/components/auth-screen";
 import { ReelsLibrary } from "@/components/reels-library";
 import { RewardDialog } from "@/components/reward-dialog";
 import { Sidebar } from "@/components/sidebar";
-import { CreateSpaceDialog, JoinSpaceDialog } from "@/components/space-dialogs";
+import { CreateSpaceDialog, JoinSpaceDialog, SpaceSettingsDialog } from "@/components/space-dialogs";
 import { TaskBoard } from "@/components/task-board";
 import { CreateTaskDialog, StuckDialog, TaskDetailDialog } from "@/components/task-dialogs";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
     image: string | null;
   } | null>(null);
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
+  const [spaceSettingsOpen, setSpaceSettingsOpen] = useState(false);
   const [burst, setBurst] = useState<string | null>(null);
 
   useEffect(() => {
@@ -120,6 +121,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
   const usedTags = [...new Set(tasks.flatMap((task) => task.tags))].sort((a, b) => a.localeCompare(b, "zh-Hant"));
   const activeTag = tagFilter !== "all" && usedTags.includes(tagFilter) ? tagFilter : "all";
   const waiting = myMembership?.status === "pending";
+  const canEditSpace = myMembership?.role === "owner" && myMembership.status === "approved";
 
   return (
     <div className="flex h-dvh overflow-hidden">
@@ -155,6 +157,16 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
                     <IconWell value={space.emoji} size="sm" />
                     <span className="truncate">{space.name}</span>
                   </h2>
+                  {canEditSpace ? (
+                    <button
+                      type="button"
+                      onClick={() => setSpaceSettingsOpen(true)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-cocoa shadow-[0_4px_12px_rgba(0,0,0,0.05)]"
+                      aria-label="空間設定"
+                    >
+                      <Gear className="h-4 w-4" weight="bold" />
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => void copyCode()}
@@ -164,6 +176,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
                     {space.invite_code}
                   </button>
                 </div>
+                {space.description ? <p className="mt-1 text-sm leading-6 text-cocoa">{space.description}</p> : null}
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-cocoa">
                   {names.length === 0
                     ? "還沒有其他成員"
@@ -357,6 +370,9 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
       </div>
 
       <CreateSpaceDialog open={dialog.kind === "create-space"} onClose={() => setDialog({ kind: "none" })} />
+      {space && spaceSettingsOpen ? (
+        <SpaceSettingsDialog key={space.id} space={space} onClose={() => setSpaceSettingsOpen(false)} />
+      ) : null}
       <JoinSpaceDialog open={dialog.kind === "join"} onClose={() => setDialog({ kind: "none" })} />
       <CreateTaskDialog
         key={`${taskSeed?.reelId ?? "new"}-${project?.id ?? "all"}`}

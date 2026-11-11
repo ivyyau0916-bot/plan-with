@@ -1,12 +1,13 @@
 "use client";
 
-import { Check, Copy, UserMinus, Users, X } from "@phosphor-icons/react";
+import { Check, Copy, Gear, Trash, UserMinus, Users, X } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { Field, Input } from "@/components/ui/input";
+import { Field, Input, TextArea } from "@/components/ui/input";
 import { useApp } from "@/components/app-provider";
 import { AvatarBadge, IconWell, RoleBadge, spaceMarks, STICKER_WEIGHT } from "@/components/mark";
+import type { Space } from "@/lib/types";
 import { cn, errorMessage, formatWhen, SPACE_ACCENTS } from "@/lib/utils";
 
 export function CreateSpaceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -364,6 +365,136 @@ export function MemberManageDialog({ spaceId, onClose }: { spaceId: string | nul
           </div>
         ) : null}
         {error ? <p className="mt-3 text-sm text-stuck">{error}</p> : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function SpaceSettingsDialog({ space, onClose }: { space: Space; onClose: () => void }) {
+  const { updateSpace, deleteSpace } = useApp();
+  const [name, setName] = useState(space.name);
+  const [description, setDescription] = useState(space.description ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setPending(true);
+    setError(null);
+    try {
+      await updateSpace(space.id, { name, description });
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <>
+      <Dialog open onOpenChange={(open) => { if (!open && !confirming) onClose(); }}>
+        <DialogContent>
+          <DialogTitle className="flex items-center gap-2 pr-8 text-xl font-bold">
+            <Gear className="h-5 w-5 text-cocoa" weight="bold" />
+            空間設定
+          </DialogTitle>
+          <DialogDescription className="mt-1 text-sm leading-6 text-cocoa">
+            改名稱和簡介。邀請碼維持不變。
+          </DialogDescription>
+          <form className="mt-5 space-y-4" onSubmit={(event) => void save(event)}>
+            <Field label="空間名稱">
+              <Input value={name} maxLength={24} onChange={(event) => setName(event.target.value)} required />
+            </Field>
+            <Field label="空間簡介" hint="選填">
+              <TextArea
+                value={description}
+                maxLength={200}
+                placeholder="例如：兩個人的大阪清單"
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </Field>
+            {error ? <p className="text-sm text-stuck">{error}</p> : null}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
+                關閉
+              </Button>
+              <Button type="submit" disabled={pending || !name.trim()}>
+                {pending ? "儲存中…" : "儲存"}
+              </Button>
+            </div>
+          </form>
+          <div className="mt-6 rounded-3xl border border-dashed border-rose/50 bg-stuck-bg/40 px-4 py-4">
+            <p className="text-sm font-semibold text-stuck">危險區域</p>
+            <p className="mt-1 text-sm leading-6 text-cocoa">刪除後，這個空間裡的專案、任務和禮物都會一起消失。</p>
+            <Button type="button" variant="danger" className="mt-3" onClick={() => setConfirming(true)}>
+              <Trash className="h-4 w-4" weight="bold" />
+              刪除此空間
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {confirming ? (
+        <DeleteSpaceDialog
+          spaceName={space.name}
+          onCancel={() => setConfirming(false)}
+          onConfirm={async () => {
+            await deleteSpace(space.id);
+            onClose();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function DeleteSpaceDialog({
+  spaceName,
+  onCancel,
+  onConfirm,
+}: {
+  spaceName: string;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [typed, setTyped] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const matched = typed.trim() === spaceName;
+
+  async function confirm() {
+    if (!matched) return;
+    setPending(true);
+    setDeleteError(null);
+    try {
+      await onConfirm();
+    } catch (caught) {
+      setDeleteError(errorMessage(caught));
+      setPending(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <DialogContent>
+        <DialogTitle className="pr-8 text-xl font-bold text-stuck">刪除此空間</DialogTitle>
+        <DialogDescription className="mt-1 text-sm leading-6 text-cocoa">
+          警告：刪除空間將會永久移除所有專案、任務與禮物記錄，無法復原。請輸入空間名稱以確認刪除。
+        </DialogDescription>
+        <div className="mt-4">
+          <Field label={`輸入「${spaceName}」`}>
+            <Input value={typed} onChange={(event) => setTyped(event.target.value)} autoComplete="off" />
+          </Field>
+        </div>
+        {deleteError ? <p className="mt-3 text-sm text-stuck">{deleteError}</p> : null}
+        <div className="mt-5 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
+            再想想
+          </Button>
+          <Button type="button" variant="danger" disabled={!matched || pending} onClick={() => void confirm()}>
+            {pending ? "刪除中…" : "永久刪除"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
