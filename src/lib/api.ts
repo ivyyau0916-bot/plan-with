@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { aggregateGiftCounts } from "@/lib/gifts";
+import { duePhrase, dueHorizon } from "@/lib/due";
 import type {
   GiftCollection,
   MembershipStatus,
@@ -20,6 +21,8 @@ export interface OurSyncApi {
   load(): Promise<Snapshot>;
   subscribe(listener: (snapshot: Snapshot) => void): () => void;
   completeOnboarding(): Promise<void>;
+  markNotificationsRead(ids: string[] | "all"): Promise<void>;
+  remindDueTasks(spaceId: string, tasks: Array<{ id: string; title: string; due_date: string }>): Promise<number>;
   createSpace(input: SpaceDraft): Promise<string>;
   updateSpace(id: string, input: { name: string; description: string }): Promise<void>;
   deleteSpace(id: string): Promise<void>;
@@ -50,6 +53,10 @@ export interface OurSyncApi {
 }
 
 type QueryError = { message: string } | null;
+
+function missingNotifications(message: string) {
+  return /notifications/i.test(message) && /does not exist|schema cache|could not find/i.test(message);
+}
 
 function assertOk(error: QueryError) {
   if (error) throw new Error(taskColumnMessage(error.message));
@@ -139,7 +146,7 @@ function withTaskExtras(task: Task): Task {
 }
 
 async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
-  const [profiles, spaces, members, tasks, projects, reelRows, comments, rewards, collections, unlocks] = await Promise.all([
+  const [profiles, spaces, members, tasks, projects, reelRows, comments, rewards, collections, unlocks, notes] = await Promise.all([
     supabase.from("profiles").select("id, display_name, avatar_emoji, has_completed_onboarding"),
     supabase.from("spaces").select("id, name, description, emoji, accent, invite_code, created_by, created_at"),
     supabase.from("space_members").select(MEMBER_COLUMNS),
@@ -152,6 +159,11 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
       .select("id, space_id, task_id, from_user_id, to_user_id, catalog_id, message, created_at"),
     supabase.from("gift_collections").select("space_id, receiver_id, gift_type, item_count"),
     supabase.from("reward_unlocks").select("user_id, catalog_id, unlocked_at"),
+    supabase
+      .from("notifications")
+      .select("id, user_id, space_id, task_id, title, message, type, is_read, created_at")
+      .order("created_at", { ascending: false })
+      .limit(40),
   ]);
 
   for (const result of [comments, rewards, unlocks]) {
@@ -217,6 +229,12 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
     description: space.description ?? "",
   }));
 
+  let notificationRows: Snapshot["notifications"] = [];
+  if (!(notes.error && missingNotifications(notes.error.message))) {
+    assertOk(notes.error);
+    notificationRows = (notes.data ?? []) as Snapshot["notifications"];
+  }
+
   return {
     profiles: ((profileResult.data ?? []) as Snapshot["profiles"]).map((profile) => ({
       ...profile,
@@ -231,6 +249,7 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
     rewards: rewardRows,
     giftCounts,
     unlocks: (unlocks.data ?? []) as Snapshot["unlocks"],
+    notifications: notificationRows,
   };
 }
 
@@ -282,11 +301,17 @@ export function createRemoteApi(supabase: SupabaseClient, userId: string): OurSy
         .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, reload)
         .subscribe();
 
+      const notesChannel = supabase
+        .channel(`oursync-notes-${userId}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, reload)
+        .subscribe();
+
       return () => {
         if (timer) clearTimeout(timer);
         void supabase.removeChannel(realtime);
         void supabase.removeChannel(reelsChannel);
         void supabase.removeChannel(projectsChannel);
+        void supabase.removeChannel(notesChannel);
       };
     },
     async completeOnboarding() {
@@ -298,6 +323,45 @@ export function createRemoteApi(supabase: SupabaseClient, userId: string): OurSy
         return;
       }
       assertOk(error);
+    },
+    async markNotificationsRead(ids) {
+      let query = supabase.from("notifications").update({ is_read: true }).eq("user_id", userId).eq("is_read", false);
+      if (ids !== "all") query = query.in("id", ids);
+      const { error } = await query;
+      if (error && missingNotifications(error.message)) return;
+      assertOk(error);
+    },
+    async remindDueTasks(spaceId, tasks) {
+      const upcoming = tasks.filter((task) => dueHorizon(task.due_date));
+      if (upcoming.length === 0) return 0;
+      const since = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
+      const existing = await supabase
+        .from("notifications")
+        .select("task_id")
+        .eq("user_id", userId)
+        .eq("type", "due_soon")
+        .gte("created_at", since);
+      if (existing.error && missingNotifications(existing.error.message)) return 0;
+      assertOk(existing.error);
+      const seen = new Set((existing.data ?? []).map((row) => row.task_id));
+      const fresh = upcoming.filter((task) => !seen.has(task.id));
+      if (fresh.length === 0) return 0;
+      const { error } = await supabase.from("notifications").insert(
+        fresh.map((task) => {
+          const kind = dueHorizon(task.due_date) ?? "tomorrow";
+          return {
+            user_id: userId,
+            space_id: spaceId,
+            task_id: task.id,
+            title: "任務即將到期",
+            message: `「${task.title}」將於${duePhrase(kind)}到期，快去完成吧！`,
+            type: "due_soon" as const,
+          };
+        }),
+      );
+      if (error && missingNotifications(error.message)) return 0;
+      assertOk(error);
+      return fresh.length;
     },
     async createSpace({ name, emoji, accent }) {
       const { data, error } = await supabase.rpc("create_space", {

@@ -9,6 +9,7 @@ import { ReelsLibrary } from "@/components/reels-library";
 import { RewardDialog } from "@/components/reward-dialog";
 import { Sidebar } from "@/components/sidebar";
 import { OnboardingTour } from "@/components/onboarding-tour";
+import { DueSoonBanner, NotificationBell } from "@/components/notification-center";
 import { CreateSpaceDialog, JoinSpaceDialog, SpaceSettingsDialog } from "@/components/space-dialogs";
 import { TaskBoard } from "@/components/task-board";
 import { CreateTaskDialog, StuckDialog, TaskDetailDialog } from "@/components/task-dialogs";
@@ -66,7 +67,7 @@ function Splash({ label }: { label: string }) {
 }
 
 function Workspace({ sharedReel }: { sharedReel: string }) {
-  const { space, project, members, tasks, reels, myMembership, person, notify, updateTask, markReelConverted } = useApp();
+  const { me, space, project, members, tasks, reels, myMembership, person, notify, updateTask, markReelConverted, focusTask } = useApp();
   const [navOpen, setNavOpen] = useState(false);
   const [view, setView] = useState<"board" | "reels">(sharedReel ? "reels" : "board");
   const [filter, setFilter] = useState<"all" | "mine" | "stuck">("all");
@@ -219,11 +220,30 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
               </div>
             )}
             {space && !waiting ? (
-              <Button className="h-10 w-10 shrink-0 px-0 sm:w-auto sm:px-4" onClick={() => setDialog({ kind: "create-task" })}>
-                <Plus className="h-5 w-5 shrink-0" weight="bold" />
-                <span className="hidden sm:inline">新增任務</span>
-              </Button>
-            ) : null}
+              <div className="flex shrink-0 items-center gap-2">
+                <NotificationBell
+                  onOpenTask={(taskId) => {
+                    setView("board");
+                    setDialog({ kind: "detail", taskId });
+                  }}
+                />
+                <AvatarBadge name={me?.display_name ?? ""} size="sm" />
+                <Button className="h-10 w-10 shrink-0 px-0 sm:w-auto sm:px-4" onClick={() => setDialog({ kind: "create-task" })}>
+                  <Plus className="h-5 w-5 shrink-0" weight="bold" />
+                  <span className="hidden sm:inline">新增任務</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex shrink-0 items-center gap-2">
+                <NotificationBell
+                  onOpenTask={(taskId) => {
+                    setView("board");
+                    setDialog({ kind: "detail", taskId });
+                  }}
+                />
+                <AvatarBadge name={me?.display_name ?? ""} size="sm" />
+              </div>
+            )}
           </div>
 
           {space && !waiting ? (
@@ -341,7 +361,14 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
                 }}
               />
             ) : (
-              <TaskBoard
+              <>
+                <DueSoonBanner
+                  onOpen={(taskId) => {
+                    focusTask(taskId);
+                    setDialog({ kind: "detail", taskId });
+                  }}
+                />
+                <TaskBoard
                 filter={filter}
                 tag={activeTag}
                 query={query}
@@ -349,6 +376,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
                 onStatus={(task, status) => void changeStatus(task, status)}
                 onReward={(taskId) => setDialog({ kind: "reward", taskId })}
               />
+              </>
             )
           ) : (
             <div className="mx-auto mt-10 max-w-md rounded-3xl bg-white/75 p-6 text-center">

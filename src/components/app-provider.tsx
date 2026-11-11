@@ -14,6 +14,7 @@ import { createRemoteApi, type OurSyncApi } from "@/lib/api";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { normalizeReelUrl, previewReel } from "@/lib/reels";
 import type { MembershipStatus, Profile, Project, RewardDraft, Snapshot, Space, SpaceMember, TaskDraft } from "@/lib/types";
+import { dueHorizon } from "@/lib/due";
 import { writeOnboardingDone } from "@/lib/onboarding";
 import { errorMessage, mapAuthError } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ type AppContextValue = {
   projects: Snapshot["projects"];
   project: Project | null;
   tasks: Snapshot["tasks"];
+  spaceTasks: Snapshot["tasks"];
   reels: Snapshot["reels"];
   comments: Snapshot["comments"];
   rewards: Snapshot["rewards"];
@@ -43,6 +45,7 @@ type AppContextValue = {
   membershipOf: (spaceId: string) => SpaceMember | null;
   spaceMembers: (spaceId: string) => SpaceMember[];
   unlocks: Snapshot["unlocks"];
+  notifications: Snapshot["notifications"];
   toast: string | null;
   notify: (message: string) => void;
   person: (id: string | null | undefined) => Person;
@@ -56,6 +59,8 @@ type AppContextValue = {
   signInWithNickname: (name: string, emoji: string) => Promise<void>;
   signOut: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
+  markNotificationsRead: (ids: string[] | "all") => Promise<void>;
+  focusTask: (taskId: string) => void;
   createSpace: (name: string, emoji: string, accent: string) => Promise<string>;
   updateSpace: (id: string, input: { name: string; description: string }) => Promise<void>;
   deleteSpace: (id: string) => Promise<void>;
@@ -146,6 +151,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         notifyRef.current(`${who} 想加入你的空間`);
       } else if (fresh.length > 1) {
         notifyRef.current(`有 ${fresh.length} 個人想加入你的空間`);
+      }
+      const seenNotes = new Set((prev.notifications ?? []).map((note) => note.id));
+      const freshNotes = (next.notifications ?? []).filter((note) => !note.is_read && !seenNotes.has(note.id));
+      if (freshNotes.length === 1) {
+        notifyRef.current(freshNotes[0]?.message || freshNotes[0]?.title || "有一則新通知");
+      } else if (freshNotes.length > 1) {
+        notifyRef.current(`有 ${freshNotes.length} 則新通知`);
       }
     }
     setSnapshot(next);
@@ -285,11 +297,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [space],
   );
+  const spaceTasks = useMemo(
+    () => snapshot?.tasks.filter((task) => task.space_id === space?.id) ?? [],
+    [snapshot, space?.id],
+  );
   const tasks = useMemo(() => {
-    const rows = snapshot?.tasks.filter((task) => task.space_id === space?.id) ?? [];
-    if (!project) return rows;
-    return rows.filter((task) => task.project_id === project.id);
-  }, [snapshot, space?.id, project]);
+    if (!project) return spaceTasks;
+    return spaceTasks.filter((task) => task.project_id === project.id);
+  }, [spaceTasks, project]);
+  const duePayload = useMemo(
+    () =>
+      (snapshot?.tasks ?? [])
+        .filter((task) => task.space_id === space?.id && task.status !== "completed" && dueHorizon(task.due_date))
+        .map((task) => ({ id: task.id, title: task.title, due_date: task.due_date ?? "" })),
+    [snapshot?.tasks, space?.id],
+  );
+  useEffect(() => {
+    const api = apiRef.current;
+    const spaceId = space?.id;
+    if (!api || !spaceId || duePayload.length === 0) return;
+    let cancelled = false;
+    void api
+      .remindDueTasks(spaceId, duePayload)
+      .then((count) => {
+        if (!cancelled && count > 0) return refresh();
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [duePayload, refresh, space?.id]);
   const reels = useMemo(
     () =>
       (snapshot?.reels.filter((reel) => reel.space_id === space?.id) ?? []).sort((a, b) =>
@@ -404,6 +441,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return next;
     });
   }, [requireApi]);
+
+  const markNotificationsRead = useCallback(
+    async (ids: string[] | "all") => {
+      const { api } = requireApi();
+      setSnapshot((current) => {
+        if (!current) return current;
+        const next = {
+          ...current,
+          notifications: (current.notifications ?? []).map((note) =>
+            ids === "all" || ids.includes(note.id) ? { ...note, is_read: true } : note,
+          ),
+        };
+        prevSnapshotRef.current = next;
+        return next;
+      });
+      try {
+        await api.markNotificationsRead(ids);
+      } catch (error) {
+        await refresh();
+        throw error;
+      }
+    },
+    [refresh, requireApi],
+  );
+
+  const focusTask = useCallback(
+    (taskId: string) => {
+      const task = snapshot?.tasks.find((item) => item.id === taskId);
+      if (!task) return;
+      setActiveSpace(task.space_id);
+      setProjectChoice({ spaceId: task.space_id, projectId: task.project_id });
+    },
+    [setActiveSpace, snapshot?.tasks],
+  );
 
   const createSpace = useCallback(
     async (name: string, emoji: string, accent: string) => {
@@ -644,6 +715,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       projects,
       project,
       tasks,
+      spaceTasks,
       reels,
       comments,
       rewards,
@@ -654,6 +726,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       membershipOf,
       spaceMembers,
       unlocks: snapshot?.unlocks ?? [],
+      notifications: snapshot?.notifications ?? [],
       toast,
       notify,
       person,
@@ -667,6 +740,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signInWithNickname,
       signOut,
       completeOnboarding,
+      markNotificationsRead,
+      focusTask,
       createSpace,
       updateSpace,
       deleteSpace,
@@ -691,12 +766,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       needsAuth,
       me,
       snapshot?.profiles,
-      snapshot?.unlocks,
       spaces,
       space,
       projects,
       project,
       tasks,
+      spaceTasks,
       reels,
       comments,
       rewards,
@@ -706,6 +781,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       reviewQueue,
       membershipOf,
       spaceMembers,
+      snapshot?.unlocks,
+      snapshot?.notifications,
       toast,
       notify,
       person,
@@ -719,6 +796,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signInWithNickname,
       signOut,
       completeOnboarding,
+      markNotificationsRead,
+      focusTask,
       createSpace,
       updateSpace,
       deleteSpace,

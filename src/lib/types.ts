@@ -108,6 +108,20 @@ export type RewardUnlock = {
   unlocked_at: string;
 };
 
+export type NotificationType = "new_task" | "task_update" | "due_soon" | "gift";
+
+export type AppNotification = {
+  id: string;
+  user_id: string;
+  space_id: string | null;
+  task_id: string | null;
+  title: string;
+  message: string;
+  type: NotificationType;
+  is_read: boolean;
+  created_at: string;
+};
+
 export type GiftCollection = {
   space_id: string;
   receiver_id: string;
@@ -126,6 +140,7 @@ export type Snapshot = {
   rewards: Reward[];
   giftCounts: GiftCollection[];
   unlocks: RewardUnlock[];
+  notifications: AppNotification[];
 };
 
 export type TaskDraft = {

@@ -1,7 +1,7 @@
 -- PlanWith（約定清單）
 -- 在 Supabase SQL Editor 整份執行一次。
 -- 需要已啟用的 Email Auth。若要「用暱稱開始」，再到 Authentication 打開 Anonymous sign-ins。
--- 新用戶會由 trigger 建立 profiles。已執行過舊版的話，再跑一次即可補上欄位、邀請碼函式、成員審核、成員管理、圖片庫與新手引導。
+-- 新用戶會由 trigger 建立 profiles。已執行過舊版的話，再跑一次即可補上欄位、邀請碼函式、成員審核、成員管理、圖片庫、新手引導與通知中心。
 
 create extension if not exists pgcrypto;
 
@@ -784,6 +784,162 @@ using (
 );
 
 -- ---------------------------------------------------------------------------
+-- Notifications. Triggers notify other approved members. Due reminders are
+-- inserted by the signed-in user for themselves.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  space_id uuid references public.spaces (id) on delete cascade,
+  task_id uuid references public.tasks (id) on delete cascade,
+  title text not null check (char_length(trim(title)) between 1 and 40),
+  message text not null default '',
+  type text not null check (type in ('new_task', 'task_update', 'due_soon', 'gift')),
+  is_read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists notifications_user_idx on public.notifications (user_id, created_at desc);
+
+create or replace function public.notify_new_task()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_name text;
+  project_name text;
+begin
+  select display_name into actor_name from public.profiles where id = new.created_by;
+  select name into project_name from public.projects where id = new.project_id;
+  insert into public.notifications (user_id, space_id, task_id, title, message, type)
+  select
+    members.user_id,
+    new.space_id,
+    new.id,
+    '新任務通知',
+    coalesce(actor_name, '有人') || case when project_name is null then ' 新增了任務：' else ' 新增了專案中的任務：' end || new.title,
+    'new_task'
+  from public.space_members members
+  where members.space_id = new.space_id
+    and members.status = 'approved'
+    and members.user_id is distinct from new.created_by;
+  return new;
+end;
+$$;
+
+create or replace function public.notify_task_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor uuid;
+  actor_name text;
+  verb text;
+begin
+  if new.title is not distinct from old.title
+     and new.status is not distinct from old.status
+     and new.due_date is not distinct from old.due_date
+     and new.assignee_id is not distinct from old.assignee_id
+     and new.description is not distinct from old.description
+     and new.project_id is not distinct from old.project_id then
+    return new;
+  end if;
+  actor := auth.uid();
+  if actor is null then
+    return new;
+  end if;
+  select display_name into actor_name from public.profiles where id = actor;
+  verb := case
+    when new.status = 'completed' and old.status is distinct from 'completed' then ' 完成了任務：'
+    when new.status = 'stuck' and old.status is distinct from 'stuck' then ' 在任務上卡住了：'
+    else ' 更新了任務：'
+  end;
+  insert into public.notifications (user_id, space_id, task_id, title, message, type)
+  select
+    members.user_id,
+    new.space_id,
+    new.id,
+    '任務更新了',
+    coalesce(actor_name, '有人') || verb || new.title,
+    'task_update'
+  from public.space_members members
+  where members.space_id = new.space_id
+    and members.status = 'approved'
+    and members.user_id is distinct from actor;
+  return new;
+end;
+$$;
+
+create or replace function public.notify_gift()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_name text;
+begin
+  if new.to_user_id = new.from_user_id then
+    return new;
+  end if;
+  select display_name into actor_name from public.profiles where id = new.from_user_id;
+  insert into public.notifications (user_id, space_id, task_id, title, message, type)
+  values (
+    new.to_user_id,
+    new.space_id,
+    new.task_id,
+    '收到一份小禮物',
+    coalesce(actor_name, '有人') || ' 送了一份禮物給你',
+    'gift'
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists tasks_notify_insert on public.tasks;
+create trigger tasks_notify_insert
+  after insert on public.tasks
+  for each row execute function public.notify_new_task();
+
+drop trigger if exists tasks_notify_update on public.tasks;
+create trigger tasks_notify_update
+  after update on public.tasks
+  for each row execute function public.notify_task_update();
+
+drop trigger if exists rewards_notify_gift on public.rewards;
+create trigger rewards_notify_gift
+  after insert on public.rewards
+  for each row execute function public.notify_gift();
+
+alter table public.notifications enable row level security;
+
+drop policy if exists "read own notifications" on public.notifications;
+create policy "read own notifications" on public.notifications
+for select to authenticated
+using (user_id = auth.uid());
+
+drop policy if exists "insert own due reminders" on public.notifications;
+create policy "insert own due reminders" on public.notifications
+for insert to authenticated
+with check (user_id = auth.uid() and type = 'due_soon');
+
+drop policy if exists "update own notifications" on public.notifications;
+create policy "update own notifications" on public.notifications
+for update to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+grant select, insert, update on public.notifications to authenticated;
+revoke all on function public.notify_new_task() from public;
+revoke all on function public.notify_task_update() from public;
+revoke all on function public.notify_gift() from public;
+
+-- ---------------------------------------------------------------------------
 -- Realtime
 -- ---------------------------------------------------------------------------
 
@@ -791,7 +947,7 @@ do $$
 declare
   tbl text;
 begin
-  foreach tbl in array array['tasks', 'comments', 'rewards', 'spaces', 'space_members', 'reels_ideas', 'projects']
+  foreach tbl in array array['tasks', 'comments', 'rewards', 'spaces', 'space_members', 'reels_ideas', 'projects', 'notifications']
   loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', tbl);
