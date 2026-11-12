@@ -15,7 +15,7 @@ import type {
   TaskDraft,
 } from "@/lib/types";
 import { normalizeInviteCode } from "@/lib/utils";
-import { normalizeLink, normalizeTags } from "@/lib/task-extras";
+import { deleteTaskImages, normalizeLink, normalizeTags } from "@/lib/task-extras";
 
 export interface OurSyncApi {
   load(): Promise<Snapshot>;
@@ -616,8 +616,11 @@ export function createRemoteApi(supabase: SupabaseClient, userId: string): OurSy
       assertOk(error);
     },
     async deleteTask(id) {
-      const { error } = await supabase.from("tasks").delete().eq("id", id);
+      const { data, error } = await supabase.from("tasks").delete().eq("id", id).select("id, image_urls");
       assertOk(error);
+      if (!data?.length) throw new Error("只有空間成員可以刪除這個任務");
+      const urls = (data[0]?.image_urls ?? []) as string[];
+      await deleteTaskImages(urls).catch(() => undefined);
     },
     async addComment(taskId, commenterId, body) {
       const text = body.trim().slice(0, 300);

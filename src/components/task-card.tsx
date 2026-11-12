@@ -1,9 +1,12 @@
 "use client";
 
-import { ArrowSquareOut, Check, Circle, Image as ImageIcon, Lifebuoy, ChatCircle, Play } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, Circle, Image as ImageIcon, Lifebuoy, ChatCircle, Play, Trash } from "@phosphor-icons/react";
+import { useState } from "react";
 import { AvatarBadge, GiftWell, TagChip } from "@/components/mark";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { Reward, Task, TaskStatus } from "@/lib/types";
-import { cn, formatDue, isOverdue, PRIORITY_META, STATUS_META } from "@/lib/utils";
+import { cn, errorMessage, formatDue, isOverdue, PRIORITY_META, STATUS_META } from "@/lib/utils";
 import { useApp } from "@/components/app-provider";
 import { TaskImage } from "@/components/task-extras";
 
@@ -29,11 +32,25 @@ export function TaskCard({
   onStatus: (status: TaskStatus) => void;
   onReward: () => void;
 }) {
-  const { person } = useApp();
+  const { person, deleteTask } = useApp();
   const assignee = person(task.assignee_id);
   const stuck = task.status === "stuck";
   const done = task.status === "completed";
   const shownGifts = gifts.slice(0, 3);
+  const [confirming, setConfirming] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    setPending(true);
+    setDeleteError(null);
+    try {
+      await deleteTask(task.id);
+    } catch (error) {
+      setDeleteError(errorMessage(error));
+      setPending(false);
+    }
+  }
 
   return (
     <article
@@ -151,8 +168,35 @@ export function TaskCard({
               送獎勵
             </button>
           ) : null}
+          <button
+            type="button"
+            aria-label="刪除任務"
+            onClick={() => setConfirming(true)}
+            className="grid h-8 w-8 place-items-center rounded-full text-mist hover:bg-stuck-bg hover:text-stuck"
+          >
+            <Trash className="h-3.5 w-3.5" weight="bold" />
+          </button>
         </div>
       </div>
+      {confirming ? (
+        <Dialog open onOpenChange={(open) => { if (!open && !pending) setConfirming(false); }}>
+          <DialogContent className="max-w-md">
+            <DialogTitle className="pr-8 text-xl font-bold">刪除這個約定</DialogTitle>
+            <DialogDescription className="mt-1 text-sm leading-6 text-cocoa">
+              確定要刪除這個約定任務嗎？留言和圖片也會一起不見。
+            </DialogDescription>
+            {deleteError ? <p className="mt-3 text-sm text-stuck">{deleteError}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => setConfirming(false)} disabled={pending}>
+                再想想
+              </Button>
+              <Button type="button" variant="danger" onClick={() => void confirmDelete()} disabled={pending}>
+                {pending ? "刪除中…" : "刪除"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </article>
   );
 }
