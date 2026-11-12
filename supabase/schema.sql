@@ -1,7 +1,7 @@
 -- PlanWith（約定清單）
 -- 在 Supabase SQL Editor 整份執行一次。
 -- 需要已啟用的 Email Auth。若要「用暱稱開始」，再到 Authentication 打開 Anonymous sign-ins。
--- 新用戶會由 trigger 建立 profiles。已執行過舊版的話，再跑一次即可補上欄位、邀請碼函式、成員審核、成員管理、圖片庫、新手引導、通知中心與個人設定。
+-- 新用戶會由 trigger 建立 profiles。已執行過舊版的話，再跑一次即可補上欄位、邀請碼函式、成員審核、成員管理、圖片庫、新手引導、通知中心、個人設定與頭像庫。
 
 create extension if not exists pgcrypto;
 
@@ -794,6 +794,56 @@ to authenticated
 using (
   bucket_id = 'task-images'
   and public.is_space_member(((storage.foldername(name))[1])::uuid)
+);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'avatars',
+  'avatars',
+  true,
+  2097152,
+  array['image/jpeg', 'image/png']
+)
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "public read avatars" on storage.objects;
+create policy "public read avatars"
+on storage.objects for select
+to public
+using (bucket_id = 'avatars');
+
+drop policy if exists "users upload own avatar" on storage.objects;
+create policy "users upload own avatar"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "users update own avatar" on storage.objects;
+create policy "users update own avatar"
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
+)
+with check (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "users delete own avatar" on storage.objects;
+create policy "users delete own avatar"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 -- ---------------------------------------------------------------------------

@@ -228,7 +228,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
                     setDialog({ kind: "detail", taskId });
                   }}
                 />
-                <ProfileButton name={me?.display_name ?? ""} mark={me?.avatar_url || me?.avatar_emoji} size="sm" />
+                <ProfileButton name={me?.display_name ?? ""} mark={me?.avatar_url || me?.avatar_emoji} size="sm" className="rounded-full" />
                 <Button className="h-10 w-10 shrink-0 px-0 sm:w-auto sm:px-4" onClick={() => setDialog({ kind: "create-task" })}>
                   <Plus className="h-5 w-5 shrink-0" weight="bold" />
                   <span className="hidden sm:inline">新增任務</span>
@@ -242,7 +242,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
                     setDialog({ kind: "detail", taskId });
                   }}
                 />
-                <ProfileButton name={me?.display_name ?? ""} mark={me?.avatar_url || me?.avatar_emoji} size="sm" />
+                <ProfileButton name={me?.display_name ?? ""} mark={me?.avatar_url || me?.avatar_emoji} size="sm" className="rounded-full" />
               </div>
             )}
           </div>

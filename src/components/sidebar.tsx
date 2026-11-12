@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Gear, Gift, Plus, PushPin, Ticket, Users, X } from "@phosphor-icons/react";
-import { GiftBoxDialog } from "@/components/gift-box-dialog";
+import { Gear, Plus, PushPin, Ticket, Users, X } from "@phosphor-icons/react";
 import { IconWell } from "@/components/mark";
-import { ProfileButton } from "@/components/profile-dialog";
+import { ProfileCard } from "@/components/profile-dialog";
 import { Logo } from "@/components/logo";
 import { ProjectDialog } from "@/components/project-dialog";
 import { MemberManageDialog, SpaceSettingsDialog } from "@/components/space-dialogs";
@@ -24,15 +23,10 @@ export function Sidebar({
   onCreateSpace: () => void;
   onJoinSpace: () => void;
 }) {
-  const { me, spaces, space, projects, project, giftCounts, reviewQueue, membershipOf, setActiveSpace, setActiveProject, signOut } =
-    useApp();
+  const { spaces, space, projects, project, reviewQueue, membershipOf, setActiveSpace, setActiveProject } = useApp();
   const [manageSpaceId, setManageSpaceId] = useState<string | null>(null);
   const [settingsSpaceId, setSettingsSpaceId] = useState<string | null>(null);
-  const [giftBoxOpen, setGiftBoxOpen] = useState(false);
   const [projectMode, setProjectMode] = useState<"create" | Project | null>(null);
-  const received = giftCounts
-    .filter((row) => row.receiver_id === me?.id)
-    .reduce((sum, row) => sum + row.item_count, 0);
   const settingsSpace = spaces.find((item) => item.id === settingsSpaceId) ?? null;
 
   return (
@@ -204,35 +198,12 @@ export function Sidebar({
           )}
         </div>
 
-        <div className="mt-4 flex items-center gap-3 rounded-3xl bg-white/75 p-3">
-          <div className="min-w-0 flex-1">
-            <ProfileButton
-              name={me?.display_name ?? ""}
-              mark={me?.avatar_url || me?.avatar_emoji}
-              size="md"
-              className="h-11 w-11"
-              showName
-            />
-            <button
-              type="button"
-              onClick={() => setGiftBoxOpen(true)}
-              className="mt-1 inline-flex items-center gap-1 rounded-full bg-blush px-2 py-0.5 text-xs font-bold text-ink"
-              aria-label={`禮物箱，累計 ${received} 份`}
-            >
-              <Gift className="h-3.5 w-3.5" weight="bold" aria-hidden />
-              <span>x {received}</span>
-            </button>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => void signOut()}>
-            登出
-          </Button>
-        </div>
+        <ProfileCard />
       </aside>
       <MemberManageDialog spaceId={manageSpaceId} onClose={() => setManageSpaceId(null)} />
       {settingsSpace ? (
         <SpaceSettingsDialog key={settingsSpace.id} space={settingsSpace} onClose={() => setSettingsSpaceId(null)} />
       ) : null}
-      <GiftBoxDialog open={giftBoxOpen} onClose={() => setGiftBoxOpen(false)} />
       <ProjectDialog mode={projectMode} onClose={() => setProjectMode(null)} />
     </>
   );

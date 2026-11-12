@@ -163,9 +163,13 @@ export function GiftWell({ id, size = "md", className }: { id: string; size?: Ma
   );
 }
 
+export function isAvatarPhoto(value: string | null | undefined) {
+  return /^https?:\/\//i.test((value ?? "").trim());
+}
+
 export function matchMark(value: string | null | undefined) {
   const raw = (value ?? "").trim();
-  if (!raw) return null;
+  if (!raw || isAvatarPhoto(raw)) return null;
   return MARKS.find((item) => item.key === raw || item.legacy.includes(raw)) ?? null;
 }
 
@@ -181,6 +185,16 @@ export function AvatarBadge({
   className?: string;
 }) {
   const box = SIZES[size];
+  const photo = isAvatarPhoto(mark) ? mark?.trim() : null;
+  if (photo) {
+    return (
+      <span
+        className={cn("block shrink-0 bg-cover bg-center", STICKER_SHADOW, box.box, className)}
+        style={{ backgroundImage: `url("${photo.replace(/["\\]/g, "")}")` }}
+        aria-hidden
+      />
+    );
+  }
   const found = matchMark(mark);
   if (found) {
     const Icon = found.icon;

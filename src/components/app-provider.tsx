@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { isAvatarPhoto } from "@/components/mark";
 import { createRemoteApi, type OurSyncApi } from "@/lib/api";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { normalizeReelUrl, previewReel } from "@/lib/reels";
@@ -59,7 +60,10 @@ type AppContextValue = {
   signUp: (email: string, password: string, name: string, emoji: string) => Promise<"ok" | "confirm-email">;
   signInWithNickname: (name: string, emoji: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (input: { name: string; avatar: string }) => Promise<void>;
+  updateProfile: (
+    input: { name: string; avatar: string; avatarUrl?: string | null },
+    notice?: string,
+  ) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   markNotificationsRead: (ids: string[] | "all") => Promise<void>;
   focusTask: (taskId: string) => void;
@@ -356,9 +360,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const person = useCallback(
     (id: string | null | undefined): Person => {
       const profile = id ? snapshot?.profiles.find((item) => item.id === id) : null;
+      const photo = isAvatarPhoto(profile?.avatar_url) ? profile?.avatar_url : null;
       return {
         name: profile?.display_name ?? (id ? "某人" : "未指派"),
-        emoji: profile?.avatar_emoji ?? "🤍",
+        emoji: photo || profile?.avatar_emoji || "🤍",
       };
     },
     [snapshot],
@@ -449,11 +454,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [requireApi]);
 
   const updateProfile = useCallback(
-    async (input: { name: string; avatar: string }) => {
+    async (input: { name: string; avatar: string; avatarUrl?: string | null }, notice = "名稱更新了") => {
       const { api } = requireApi();
       await api.updateProfile(input);
       await refresh();
-      notify("名稱更新了");
+      notify(notice);
     },
     [notify, refresh, requireApi],
   );

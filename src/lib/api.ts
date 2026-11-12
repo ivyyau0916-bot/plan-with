@@ -21,7 +21,7 @@ export interface OurSyncApi {
   load(): Promise<Snapshot>;
   subscribe(listener: (snapshot: Snapshot) => void): () => void;
   completeOnboarding(): Promise<void>;
-  updateProfile(input: { name: string; avatar: string }): Promise<void>;
+  updateProfile(input: { name: string; avatar: string; avatarUrl?: string | null }): Promise<void>;
   markNotificationsRead(ids: string[] | "all"): Promise<void>;
   remindDueTasks(spaceId: string, tasks: Array<{ id: string; title: string; due_date: string }>): Promise<number>;
   createSpace(input: SpaceDraft): Promise<string>;
@@ -341,14 +341,20 @@ export function createRemoteApi(supabase: SupabaseClient, userId: string): OurSy
     },
     async updateProfile(input) {
       const name = input.name.trim().slice(0, 24);
-      const avatar = input.avatar.trim().slice(0, 80) || "heart";
+      const avatar = input.avatar.trim().slice(0, 32) || "heart";
       if (!name) throw new Error("顯示名稱不能是空白");
-      const full = await supabase
-        .from("profiles")
-        .update({ display_name: name, avatar_emoji: avatar, avatar_url: avatar })
-        .eq("id", userId)
-        .select("id");
+      const patch: { display_name: string; avatar_emoji: string; avatar_url?: string | null } = {
+        display_name: name,
+        avatar_emoji: avatar,
+      };
+      if (input.avatarUrl !== undefined) {
+        const photo = input.avatarUrl?.trim() || null;
+        if (photo && !/^https?:\/\//i.test(photo)) throw new Error("頭像需要是圖片網址");
+        patch.avatar_url = photo;
+      }
+      const full = await supabase.from("profiles").update(patch).eq("id", userId).select("id");
       if (full.error && /avatar_url|updated_at/i.test(full.error.message)) {
+        if (patch.avatar_url) throw new Error("頭像欄位還沒準備好。請在 Supabase 再執行一次 schema.sql。");
         const legacy = await supabase
           .from("profiles")
           .update({ display_name: name, avatar_emoji: avatar })
