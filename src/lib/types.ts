@@ -16,6 +16,7 @@ export type Space = {
   id: string;
   name: string;
   emoji: string;
+  avatar_url: string | null;
   accent: string;
   invite_code: string;
   description: string;
@@ -164,6 +165,7 @@ export type SpaceDraft = {
   emoji: string;
   accent: string;
   userId: string;
+  avatarUrl?: string | null;
 };
 
 export type RewardDraft = {

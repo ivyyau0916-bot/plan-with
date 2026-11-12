@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Gear, Plus, PushPin, Ticket, Users, X } from "@phosphor-icons/react";
-import { IconWell } from "@/components/mark";
+import { IconWell, SpaceMark } from "@/components/mark";
 import { ProfileCard } from "@/components/profile-dialog";
 import { Logo } from "@/components/logo";
 import { ProjectDialog } from "@/components/project-dialog";
@@ -92,9 +92,11 @@ export function Sidebar({
                     className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
                   >
                     <span className="relative">
-                      <IconWell
-                        value={item.emoji}
-                        className={pending ? "bg-white/70 text-cocoa grayscale" : undefined}
+                      <SpaceMark
+                        emoji={item.emoji}
+                        photo={item.avatar_url}
+                        name={item.name}
+                        className={pending ? "grayscale" : undefined}
                       />
                       {requests > 0 ? (
                         <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-coral ring-2 ring-[#f8efe6]" />

@@ -25,7 +25,7 @@ export interface OurSyncApi {
   markNotificationsRead(ids: string[] | "all"): Promise<void>;
   remindDueTasks(spaceId: string, tasks: Array<{ id: string; title: string; due_date: string }>): Promise<number>;
   createSpace(input: SpaceDraft): Promise<string>;
-  updateSpace(id: string, input: { name: string; description: string }): Promise<void>;
+  updateSpace(id: string, input: { name: string; description: string; emoji?: string; avatarUrl?: string | null }): Promise<void>;
   deleteSpace(id: string): Promise<void>;
   joinSpace(code: string, userId: string): Promise<string>;
   createTask(spaceId: string, userId: string, draft: TaskDraft): Promise<string>;
@@ -149,7 +149,7 @@ function withTaskExtras(task: Task): Task {
 async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
   const [profiles, spaces, members, tasks, projects, reelRows, comments, rewards, collections, unlocks, notes] = await Promise.all([
     supabase.from("profiles").select("id, display_name, avatar_emoji, avatar_url, has_completed_onboarding, updated_at"),
-    supabase.from("spaces").select("id, name, description, emoji, accent, invite_code, created_by, created_at"),
+    supabase.from("spaces").select("id, name, description, emoji, avatar_url, accent, invite_code, created_by, created_at"),
     supabase.from("space_members").select(MEMBER_COLUMNS),
     supabase.from("tasks").select(TASK_COLUMNS),
     supabase.from("projects").select("id, space_id, name, description, icon_emoji, created_by, created_at"),
@@ -183,7 +183,12 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
   assertOk(profileResult.error);
 
   let spaceResult = spaces;
-  if (spaces.error && /description/i.test(spaces.error.message)) {
+  if (spaces.error && /avatar_url/i.test(spaces.error.message)) {
+    spaceResult = await supabase
+      .from("spaces")
+      .select("id, name, description, emoji, accent, invite_code, created_by, created_at");
+  }
+  if (spaceResult.error && /description/i.test(spaceResult.error.message)) {
     spaceResult = await supabase
       .from("spaces")
       .select("id, name, emoji, accent, invite_code, created_by, created_at");
@@ -231,6 +236,8 @@ async function fetchSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
 
   const spaceRows = ((spaceResult.data ?? []) as Snapshot["spaces"]).map((space) => ({
     ...space,
+    emoji: space.emoji || "heart",
+    avatar_url: space.avatar_url ?? null,
     accent: space.accent || "blush",
     description: space.description ?? "",
   }));
@@ -406,27 +413,64 @@ export function createRemoteApi(supabase: SupabaseClient, userId: string): OurSy
       assertOk(error);
       return fresh.length;
     },
-    async createSpace({ name, emoji, accent }) {
-      const { data, error } = await supabase.rpc("create_space", {
+    async createSpace({ name, emoji, accent, avatarUrl }) {
+      const args = {
         space_name: name.trim(),
-        space_emoji: emoji || "heart",
+        space_emoji: emoji.trim().slice(0, 64) || "heart",
         space_accent: accent || "blush",
-      });
-      assertOk(error);
-      if (typeof data !== "string") throw new Error("空間沒有建立成功");
-      return data;
+        space_avatar: avatarUrl?.trim() || null,
+      };
+      let created = await supabase.rpc("create_space", args);
+      if (created.error && /space_avatar|could not find the function/i.test(created.error.message)) {
+        created = await supabase.rpc("create_space", {
+          space_name: args.space_name,
+          space_emoji: args.space_emoji,
+          space_accent: args.space_accent,
+        });
+        assertOk(created.error);
+        if (typeof created.data !== "string") throw new Error("空間沒有建立成功");
+        if (args.space_avatar) {
+          const saved = await supabase.from("spaces").update({ avatar_url: args.space_avatar }).eq("id", created.data);
+          if (saved.error && /avatar_url/i.test(saved.error.message)) {
+            throw new Error("空間圖標欄位還沒準備好。請在 Supabase 再執行一次 schema.sql。");
+          }
+          assertOk(saved.error);
+        }
+        return created.data;
+      }
+      assertOk(created.error);
+      if (typeof created.data !== "string") throw new Error("空間沒有建立成功");
+      return created.data;
     },
     async updateSpace(id, input) {
       const name = input.name.trim().slice(0, 24);
       const description = input.description.trim().slice(0, 200);
       if (!name) throw new Error("空間名稱不能是空白");
-      const { data, error } = await supabase
-        .from("spaces")
-        .update({ name, description })
-        .eq("id", id)
-        .select("id");
-      assertOk(error);
-      if (!data?.length) throw new Error("只有空間創作者可以改這項設定");
+      const patch: { name: string; description: string; emoji?: string; avatar_url?: string | null } = {
+        name,
+        description,
+      };
+      if (input.emoji !== undefined) patch.emoji = input.emoji.trim().slice(0, 64) || "heart";
+      if (input.avatarUrl !== undefined) {
+        const photo = input.avatarUrl?.trim() || null;
+        if (photo && !/^https?:\/\//i.test(photo)) throw new Error("空間圖標需要是圖片網址");
+        patch.avatar_url = photo;
+      }
+      const full = await supabase.from("spaces").update(patch).eq("id", id).select("id");
+      if (full.error && /avatar_url|description/i.test(full.error.message)) {
+        if (patch.avatar_url && /avatar_url/i.test(full.error.message)) {
+          throw new Error("空間圖標欄位還沒準備好。請在 Supabase 再執行一次 schema.sql。");
+        }
+        const legacy: { name: string; emoji?: string; description?: string } = { name };
+        if (patch.emoji) legacy.emoji = patch.emoji;
+        if (!/description/i.test(full.error.message)) legacy.description = description;
+        const retry = await supabase.from("spaces").update(legacy).eq("id", id).select("id");
+        assertOk(retry.error);
+        if (!retry.data?.length) throw new Error("只有空間創作者可以改這項設定");
+        return;
+      }
+      assertOk(full.error);
+      if (!full.data?.length) throw new Error("只有空間創作者可以改這項設定");
     },
     async deleteSpace(id) {
       const { data, error } = await supabase.from("spaces").delete().eq("id", id).select("id");

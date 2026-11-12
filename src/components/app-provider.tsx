@@ -67,8 +67,11 @@ type AppContextValue = {
   completeOnboarding: () => Promise<void>;
   markNotificationsRead: (ids: string[] | "all") => Promise<void>;
   focusTask: (taskId: string) => void;
-  createSpace: (name: string, emoji: string, accent: string) => Promise<string>;
-  updateSpace: (id: string, input: { name: string; description: string }) => Promise<void>;
+  createSpace: (name: string, emoji: string, accent: string, avatarUrl?: string | null) => Promise<string>;
+  updateSpace: (
+    id: string,
+    input: { name: string; description: string; emoji?: string; avatarUrl?: string | null },
+  ) => Promise<void>;
   deleteSpace: (id: string) => Promise<void>;
   joinSpace: (code: string) => Promise<void>;
   reviewMembership: (memberId: string, decision: Exclude<MembershipStatus, "pending">) => Promise<void>;
@@ -498,9 +501,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const createSpace = useCallback(
-    async (name: string, emoji: string, accent: string) => {
+    async (name: string, emoji: string, accent: string, avatarUrl?: string | null) => {
       const { api, userId } = requireApi();
-      const id = await api.createSpace({ name, emoji, accent, userId });
+      const id = await api.createSpace({ name, emoji, accent, userId, avatarUrl });
       const next = await api.load();
       applyRef.current(next);
       setActiveSpace(id);
@@ -510,7 +513,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const updateSpace = useCallback(
-    async (id: string, input: { name: string; description: string }) => {
+    async (id: string, input: { name: string; description: string; emoji?: string; avatarUrl?: string | null }) => {
       const { api } = requireApi();
       await api.updateSpace(id, input);
       await refresh();

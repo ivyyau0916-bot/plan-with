@@ -1,7 +1,7 @@
 -- PlanWith（約定清單）
 -- 在 Supabase SQL Editor 整份執行一次。
 -- 需要已啟用的 Email Auth。若要「用暱稱開始」，再到 Authentication 打開 Anonymous sign-ins。
--- 新用戶會由 trigger 建立 profiles。已執行過舊版的話，再跑一次即可補上欄位、邀請碼函式、成員審核、成員管理、圖片庫、新手引導、通知中心、個人設定與頭像庫。
+-- 新用戶會由 trigger 建立 profiles。已執行過舊版的話，再跑一次即可補上欄位、邀請碼函式、成員審核、成員管理、圖片庫、新手引導、通知中心、個人設定、頭像庫與空間圖標。
 
 create extension if not exists pgcrypto;
 
@@ -231,6 +231,8 @@ create trigger profiles_touch_updated_at
 
 alter table public.spaces add column if not exists description text not null default '';
 
+alter table public.spaces add column if not exists avatar_url text;
+
 do $$
 begin
   alter table public.spaces
@@ -321,8 +323,15 @@ exception
 end $$;
 
 drop function if exists public.create_space(text, text);
+drop function if exists public.create_space(text, text, text);
+drop function if exists public.create_space(text, text, text, text);
 
-create or replace function public.create_space(space_name text, space_emoji text, space_accent text default 'blush')
+create or replace function public.create_space(
+  space_name text,
+  space_emoji text,
+  space_accent text default 'blush',
+  space_avatar text default null
+)
 returns uuid
 language plpgsql
 security definer
@@ -331,6 +340,8 @@ as $$
 declare
   sid uuid;
   chosen text := coalesce(nullif(space_accent, ''), 'blush');
+  icon text := left(coalesce(nullif(trim(space_emoji), ''), 'heart'), 64);
+  portrait text := nullif(trim(space_avatar), '');
 begin
   if auth.uid() is null then
     raise exception '請先登入';
@@ -341,14 +352,18 @@ begin
   if chosen not in ('blush', 'sage', 'sand', 'lilac', 'gold') then
     chosen := 'blush';
   end if;
+  if portrait is not null and portrait !~* '^https?://' then
+    portrait := null;
+  end if;
 
-  insert into public.spaces (name, emoji, accent, invite_code, created_by)
+  insert into public.spaces (name, emoji, accent, invite_code, created_by, avatar_url)
   values (
     left(trim(space_name), 24),
-    coalesce(nullif(space_emoji, ''), '💛'),
+    icon,
     chosen,
     public.generate_invite_code(),
-    auth.uid()
+    auth.uid(),
+    portrait
   )
   returning id into sid;
 
@@ -435,12 +450,12 @@ $$;
 revoke all on function public.handle_new_user() from public;
 revoke all on function public.is_space_member(uuid) from public;
 revoke all on function public.generate_invite_code() from public;
-revoke all on function public.create_space(text, text, text) from public;
+revoke all on function public.create_space(text, text, text, text) from public;
 revoke all on function public.join_space(text) from public;
 revoke all on function public.review_membership(uuid, text) from public;
 revoke all on function public.protect_space_identity() from public;
 grant execute on function public.is_space_member(uuid) to authenticated;
-grant execute on function public.create_space(text, text, text) to authenticated;
+grant execute on function public.create_space(text, text, text, text) to authenticated;
 grant execute on function public.join_space(text) to authenticated;
 grant execute on function public.review_membership(uuid, text) to authenticated;
 
@@ -843,6 +858,56 @@ on storage.objects for delete
 to authenticated
 using (
   bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'space-icons',
+  'space-icons',
+  true,
+  2097152,
+  array['image/jpeg', 'image/png']
+)
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "public read space icons" on storage.objects;
+create policy "public read space icons"
+on storage.objects for select
+to public
+using (bucket_id = 'space-icons');
+
+drop policy if exists "users upload own space icons" on storage.objects;
+create policy "users upload own space icons"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'space-icons'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "users update own space icons" on storage.objects;
+create policy "users update own space icons"
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'space-icons'
+  and (storage.foldername(name))[1] = auth.uid()::text
+)
+with check (
+  bucket_id = 'space-icons'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "users delete own space icons" on storage.objects;
+create policy "users delete own space icons"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'space-icons'
   and (storage.foldername(name))[1] = auth.uid()::text
 );
 

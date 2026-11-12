@@ -1,19 +1,102 @@
 "use client";
 
-import { Check, Copy, Gear, Trash, UserMinus, Users, X } from "@phosphor-icons/react";
-import { useState } from "react";
+import { Camera, Check, Copy, Gear, Trash, UserMinus, Users, X } from "@phosphor-icons/react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Field, Input, TextArea } from "@/components/ui/input";
 import { useApp } from "@/components/app-provider";
-import { AvatarBadge, IconWell, RoleBadge, spaceMarks, STICKER_WEIGHT } from "@/components/mark";
+import { AvatarBadge, isAvatarPhoto, RoleBadge, SpaceMark, spaceMarks, STICKER_WEIGHT } from "@/components/mark";
+import { uploadSpaceIcon } from "@/lib/avatar";
 import type { Space } from "@/lib/types";
 import { cn, errorMessage, formatWhen, SPACE_ACCENTS } from "@/lib/utils";
+
+const QUICK_SPACE_ICONS = ["plane", "wave", "cake", "house", "heart", "camp", "gift", "sparkle"];
+
+function SpaceIconChooser({
+  emoji,
+  photo,
+  onEmoji,
+  onPhoto,
+}: {
+  emoji: string;
+  photo: string | null;
+  onEmoji: (emoji: string) => void;
+  onPhoto: (photo: string | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const quick = new Set(QUICK_SPACE_ICONS);
+  const marks = spaceMarks();
+  const ordered = [
+    ...QUICK_SPACE_ICONS.map((key) => marks.find((item) => item.key === key)).filter((item) => item != null),
+    ...marks.filter((item) => !quick.has(item.key)),
+  ];
+
+  async function onFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      onPhoto(await uploadSpaceIcon(file));
+    } catch (caught) {
+      setUploadError(errorMessage(caught));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-cocoa">空間圖標</p>
+      <div className="flex flex-wrap gap-2">
+        {ordered.map((item) => {
+          const Icon = item.icon;
+          const selected = !photo && emoji === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              aria-label={item.label}
+              aria-pressed={selected}
+              onClick={() => onEmoji(item.key)}
+              className={cn(
+                "grid h-10 w-10 place-items-center rounded-2xl shadow-[0_4px_12px_rgba(0,0,0,0.05)]",
+                item.well,
+                item.ink,
+                selected && "ring-2 ring-ink/20",
+              )}
+            >
+              <Icon className="h-4 w-4" weight={STICKER_WEIGHT} />
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="soft" size="sm" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          <Camera className="h-3.5 w-3.5" weight="bold" />
+          {uploading ? "上傳中…" : "上傳圖片"}
+        </Button>
+        {photo ? (
+          <Button type="button" variant="ghost" size="sm" onClick={() => onPhoto(null)} disabled={uploading}>
+            改回圖標
+          </Button>
+        ) : null}
+      </div>
+      <input ref={inputRef} type="file" accept="image/png,image/jpeg" className="sr-only" onChange={(event) => void onFile(event)} />
+      {uploadError ? <p className="text-sm text-stuck">{uploadError}</p> : null}
+    </div>
+  );
+}
 
 export function CreateSpaceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { createSpace, notify } = useApp();
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("heart");
+  const [photo, setPhoto] = useState<string | null>(null);
   const [accent, setAccent] = useState("blush");
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -23,6 +106,7 @@ export function CreateSpaceDialog({ open, onClose }: { open: boolean; onClose: (
   function close() {
     setName("");
     setEmoji("heart");
+    setPhoto(null);
     setAccent("blush");
     setInviteCode(null);
     setCopied(false);
@@ -35,7 +119,7 @@ export function CreateSpaceDialog({ open, onClose }: { open: boolean; onClose: (
     setPending(true);
     setError(null);
     try {
-      const code = await createSpace(name, emoji, accent);
+      const code = await createSpace(name, emoji, accent, photo);
       setInviteCode(code || null);
     } catch (caught) {
       setError(errorMessage(caught));
@@ -80,41 +164,29 @@ export function CreateSpaceDialog({ open, onClose }: { open: boolean; onClose: (
           </div>
         ) : (
           <form className="mt-5 space-y-4" onSubmit={(event) => void submit(event)}>
-            <Field label="空間名稱">
-              <Input
-                value={name}
-                maxLength={24}
-                placeholder="例如：二人世界、閨蜜大阪之旅"
-                onChange={(event) => setName(event.target.value)}
-                required
-              />
-            </Field>
-            <div>
-              <p className="mb-2 text-sm font-medium text-cocoa">圖示</p>
-              <div className="flex flex-wrap gap-2">
-                {spaceMarks().map((item) => {
-                  const Icon = item.icon;
-                  const selected = emoji === item.key;
-                  return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      aria-label={item.label}
-                      aria-pressed={selected}
-                      onClick={() => setEmoji(item.key)}
-                      className={cn(
-                        "grid h-10 w-10 place-items-center rounded-2xl shadow-[0_4px_12px_rgba(0,0,0,0.05)]",
-                        item.well,
-                        item.ink,
-                        selected && "ring-2 ring-ink/20",
-                      )}
-                    >
-                      <Icon className="h-4 w-4" weight={STICKER_WEIGHT} />
-                    </button>
-                  );
-                })}
+            <div className="flex items-end gap-3">
+              <SpaceMark emoji={emoji} photo={photo} name={name} size="lg" className="mb-0.5 rounded-3xl" />
+              <div className="min-w-0 flex-1">
+                <Field label="空間名稱">
+                  <Input
+                    value={name}
+                    maxLength={24}
+                    placeholder="例如：二人世界、閨蜜大阪之旅"
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                  />
+                </Field>
               </div>
             </div>
+            <SpaceIconChooser
+              emoji={emoji}
+              photo={photo}
+              onEmoji={(next) => {
+                setEmoji(next);
+                setPhoto(null);
+              }}
+              onPhoto={setPhoto}
+            />
             <div>
               <p className="mb-2 text-sm font-medium text-cocoa">顏色</p>
               <div className="flex flex-wrap gap-2">
@@ -268,7 +340,7 @@ export function MemberManageDialog({ spaceId, onClose }: { spaceId: string | nul
         <DialogDescription className="mt-1 text-sm leading-6 text-cocoa">
           {space ? (
             <span className="inline-flex items-center gap-1.5">
-              <IconWell value={space.emoji} size="xs" />
+              <SpaceMark emoji={space.emoji} photo={space.avatar_url} name={space.name} size="xs" />
               {space.name} 裡的人
             </span>
           ) : (
@@ -374,6 +446,8 @@ export function SpaceSettingsDialog({ space, onClose }: { space: Space; onClose:
   const { updateSpace, deleteSpace } = useApp();
   const [name, setName] = useState(space.name);
   const [description, setDescription] = useState(space.description ?? "");
+  const [emoji, setEmoji] = useState(space.emoji || "heart");
+  const [photo, setPhoto] = useState(isAvatarPhoto(space.avatar_url) ? space.avatar_url : null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -383,7 +457,7 @@ export function SpaceSettingsDialog({ space, onClose }: { space: Space; onClose:
     setPending(true);
     setError(null);
     try {
-      await updateSpace(space.id, { name, description });
+      await updateSpace(space.id, { name, description, emoji, avatarUrl: photo });
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -400,12 +474,26 @@ export function SpaceSettingsDialog({ space, onClose }: { space: Space; onClose:
             空間設定
           </DialogTitle>
           <DialogDescription className="mt-1 text-sm leading-6 text-cocoa">
-            改名稱和簡介。邀請碼維持不變。
+            改名稱、簡介和圖標。邀請碼維持不變。
           </DialogDescription>
           <form className="mt-5 space-y-4" onSubmit={(event) => void save(event)}>
-            <Field label="空間名稱">
-              <Input value={name} maxLength={24} onChange={(event) => setName(event.target.value)} required />
-            </Field>
+            <div className="flex items-end gap-3">
+              <SpaceMark emoji={emoji} photo={photo} name={name} size="lg" className="mb-0.5 rounded-3xl" />
+              <div className="min-w-0 flex-1">
+                <Field label="空間名稱">
+                  <Input value={name} maxLength={24} onChange={(event) => setName(event.target.value)} required />
+                </Field>
+              </div>
+            </div>
+            <SpaceIconChooser
+              emoji={emoji}
+              photo={photo}
+              onEmoji={(next) => {
+                setEmoji(next);
+                setPhoto(null);
+              }}
+              onPhoto={setPhoto}
+            />
             <Field label="空間簡介" hint="選填">
               <TextArea
                 value={description}

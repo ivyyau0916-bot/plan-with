@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   AirplaneTilt,
   BookOpen,
@@ -19,10 +20,12 @@ import {
   Heart,
   HouseLine,
   Moon,
+  Sparkle,
+  Tent,
+  Waves,
   Notebook,
   PawPrint,
   ShoppingBag,
-  Sparkle,
   Star,
   Ticket,
   UserCircle,
@@ -43,14 +46,18 @@ type MarkDef = {
 };
 
 const MARKS: MarkDef[] = [
-  { key: "heart", label: "心", groups: ["space"], legacy: ["💛", "🤍", "❤️", "💕", "✨"], icon: Heart, well: "bg-pink-50", ink: "text-pink-500" },
+  { key: "heart", label: "心意", groups: ["space"], legacy: ["💛", "🤍", "❤️", "💕", "💖"], icon: Heart, well: "bg-pink-50", ink: "text-pink-500" },
   { key: "flower", label: "花", groups: ["space"], legacy: ["🌸", "🌷", "🌼", "💐"], icon: Flower, well: "bg-rose-100", ink: "text-rose-500" },
   { key: "house", label: "家", groups: ["space", "project"], legacy: ["🏠"], icon: HouseLine, well: "bg-amber-100", ink: "text-amber-700" },
   { key: "plane", label: "旅遊", groups: ["space", "project"], legacy: ["✈️"], icon: AirplaneTilt, well: "bg-sky-100", ink: "text-sky-600" },
   { key: "moon", label: "月亮", groups: ["space"], legacy: ["🌙"], icon: Moon, well: "bg-purple-100", ink: "text-purple-500" },
   { key: "coffee", label: "咖啡", groups: ["space"], legacy: ["☕"], icon: Coffee, well: "bg-amber-50", ink: "text-amber-800" },
   { key: "paw", label: "寵物", groups: ["space"], legacy: ["🐶", "🐱", "🐾"], icon: PawPrint, well: "bg-orange-50", ink: "text-orange-700" },
-  { key: "cake", label: "蛋糕", groups: ["space", "project"], legacy: ["🍰", "🎂"], icon: Cake, well: "bg-pink-100", ink: "text-pink-500" },
+  { key: "cake", label: "甜點", groups: ["space", "project"], legacy: ["🍰", "🎂"], icon: Cake, well: "bg-pink-100", ink: "text-pink-500" },
+  { key: "wave", label: "海邊", groups: ["space"], legacy: ["🌊"], icon: Waves, well: "bg-sky-100", ink: "text-sky-600" },
+  { key: "camp", label: "露營", groups: ["space"], legacy: ["🏕️"], icon: Tent, well: "bg-emerald-50", ink: "text-emerald-700" },
+  { key: "gift", label: "禮物", groups: ["space"], legacy: ["🎁"], icon: Gift, well: "bg-rose-100", ink: "text-rose-500" },
+  { key: "sparkle", label: "閃亮", groups: ["space"], legacy: ["✨"], icon: Sparkle, well: "bg-amber-50", ink: "text-amber-600" },
   { key: "book", label: "書", groups: ["space"], legacy: ["📚"], icon: BookOpen, well: "bg-emerald-50", ink: "text-emerald-700" },
   { key: "game", label: "遊戲", groups: ["space"], legacy: ["🎮"], icon: GameController, well: "bg-sky-50", ink: "text-sky-700" },
   { key: "building", label: "住宿", groups: ["project"], legacy: ["🏨"], icon: CastleTurret, well: "bg-amber-100", ink: "text-amber-700" },
@@ -126,6 +133,76 @@ export function findMark(value: string | null | undefined, kind: "space" | "proj
 
 export function markKey(value: string | null | undefined, kind: "space" | "project" = "space") {
   return findMark(value, kind).key;
+}
+
+export function matchSpaceIcon(value: string | null | undefined) {
+  const raw = (value ?? "").trim();
+  if (!raw || isAvatarPhoto(raw)) return null;
+  return (
+    MARKS.find((item) => item.groups.includes("space") && (item.key === raw || item.legacy.includes(raw))) ??
+    MARKS.find((item) => item.key === raw || item.legacy.includes(raw)) ??
+    null
+  );
+}
+
+function isEmojiGlyph(value: string) {
+  return /\p{Extended_Pictographic}/u.test(value);
+}
+
+export function SpaceMark({
+  emoji,
+  photo,
+  name,
+  size = "md",
+  className,
+}: {
+  emoji?: string | null;
+  photo?: string | null;
+  name?: string;
+  size?: MarkSize;
+  className?: string;
+}) {
+  const box = SIZES[size];
+  const portrait = isAvatarPhoto(photo) ? photo?.trim() : null;
+  if (portrait) {
+    return (
+      <span
+        className={cn("block shrink-0 bg-cover bg-center", STICKER_SHADOW, box.box, className)}
+        style={{ backgroundImage: `url("${portrait.replace(/["\\]/g, "")}")` }}
+        aria-hidden
+      />
+    );
+  }
+  const mark = matchSpaceIcon(emoji);
+  if (mark) {
+    const Icon = mark.icon;
+    return (
+      <span className={cn("grid shrink-0 place-items-center", STICKER_SHADOW, mark.well, mark.ink, box.box, className)} aria-hidden>
+        <Icon className={box.icon} weight={STICKER_WEIGHT} />
+      </span>
+    );
+  }
+  const raw = (emoji ?? "").trim();
+  if (raw && isEmojiGlyph(raw)) {
+    return (
+      <span className={cn("grid shrink-0 place-items-center bg-white", STICKER_SHADOW, box.box, box.text, className)} aria-hidden>
+        {raw}
+      </span>
+    );
+  }
+  const letter = [...(name ?? "").trim()][0];
+  if (letter) {
+    return (
+      <span className={cn("grid shrink-0 place-items-center bg-blush font-semibold text-ink", STICKER_SHADOW, box.box, box.text, className)} aria-hidden>
+        {letter}
+      </span>
+    );
+  }
+  return (
+    <span className={cn("relative block shrink-0 overflow-hidden bg-[#f6e3dc]", STICKER_SHADOW, box.box, className)} aria-hidden>
+      <Image src="/planwith-logo.png" alt="" fill sizes="64px" className="object-cover" />
+    </span>
+  );
 }
 
 export function IconWell({

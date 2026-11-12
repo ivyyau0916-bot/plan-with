@@ -37,3 +37,26 @@ export async function uploadAvatar(file: File) {
   const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
   return `${url}?v=${Date.now()}`;
 }
+
+export async function uploadSpaceIcon(file: File) {
+  const type = file.type === "image/jpg" ? "image/jpeg" : file.type;
+  if (type !== "image/jpeg" && type !== "image/png") throw new Error("請用 JPG 或 PNG。");
+  if (file.size > MAX_BYTES) throw new Error("空間圖標請小於 2MB。");
+
+  const supabase = getSupabase();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) throw new Error("請先登入再更換空間圖標");
+
+  const extension = type === "image/png" ? "png" : "jpg";
+  const path = `${userData.user.id}/${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabase.storage.from("space-icons").upload(path, file, {
+    contentType: type,
+    upsert: false,
+  });
+  if (error) {
+    const message = avatarMessage(error.message).replace("頭像", "空間圖標");
+    throw new Error(message);
+  }
+  const url = supabase.storage.from("space-icons").getPublicUrl(path).data.publicUrl;
+  return `${url}?v=${Date.now()}`;
+}

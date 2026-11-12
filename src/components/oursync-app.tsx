@@ -16,7 +16,7 @@ import { TaskBoard } from "@/components/task-board";
 import { CreateTaskDialog, StuckDialog, TaskDetailDialog } from "@/components/task-dialogs";
 import { Button } from "@/components/ui/button";
 import { reelUrlFromShare } from "@/lib/reels";
-import { AvatarBadge, GiftWell, IconWell, TagChip } from "@/components/mark";
+import { AvatarBadge, GiftWell, IconWell, SpaceMark, TagChip } from "@/components/mark";
 import type { Task, TaskStatus } from "@/lib/types";
 import { cn, errorMessage } from "@/lib/utils";
 
@@ -148,7 +148,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
             {space && waiting ? (
               <div className="min-w-0 flex-1">
                 <h2 className="flex min-w-0 items-center gap-2 text-2xl font-bold">
-                  <IconWell value={space.emoji} size="sm" />
+                  <SpaceMark emoji={space.emoji} photo={space.avatar_url} name={space.name} size="sm" />
                   <span className="truncate">{space.name}</span>
                 </h2>
                 <p className="mt-1 text-sm text-cocoa">審核中，還沒有打開這份看板</p>
@@ -157,7 +157,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="flex min-w-0 items-center gap-2 text-2xl font-bold">
-                    <IconWell value={space.emoji} size="sm" />
+                    <SpaceMark emoji={space.emoji} photo={space.avatar_url} name={space.name} size="sm" />
                     <span className="truncate">{space.name}</span>
                   </h2>
                   {canEditSpace ? (
@@ -338,7 +338,7 @@ function Workspace({ sharedReel }: { sharedReel: string }) {
           {space && waiting ? (
             <div className="mx-auto mt-16 max-w-md rounded-[32px] bg-white/80 p-8 text-center shadow-[0_24px_50px_-32px_rgba(80,48,36,0.7)]">
               <div className="flex justify-center">
-                <IconWell value={space.emoji} size="lg" />
+                <SpaceMark emoji={space.emoji} photo={space.avatar_url} name={space.name} size="lg" />
               </div>
               <h3 className="mt-4 text-xl font-bold">{space.name}</h3>
               <p className="mt-3 inline-flex rounded-full bg-[#e6dfd6] px-3 py-1 text-xs font-semibold text-cocoa">審核中</p>
